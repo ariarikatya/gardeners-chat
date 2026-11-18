@@ -1,0 +1,38 @@
+import './globals.css';
+import ServiceWorkerRegister from '@/components/ServiceWorkerRegister';
+import BuildVersionWatcher from '@/components/BuildVersionWatcher';
+import SessionActivityTracker from '@/components/SessionActivityTracker';
+import { CLIENT_VERSION } from '@/lib/pwa-env';
+
+export const metadata = {
+  title: 'Анемон Агро',
+  description: 'Система управления заказами садовников',
+  manifest: '/manifest.json',
+};
+
+export const viewport = {
+  themeColor: '#065f46',
+};
+
+export default function RootLayout({ children }) {
+  return (
+    <html lang="ru" suppressHydrationWarning>
+      <head>
+        <link rel="preconnect" href="https://anemonagro.ru" />
+        <link rel="apple-touch-icon" href="/icon-192.png" />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `window.CLIENT_VERSION = ${JSON.stringify(CLIENT_VERSION)};`,
+          }}
+        />
+        <script src={`/emergency.js?v=${CLIENT_VERSION}`} defer></script>
+      </head>
+      <body>
+        {children}
+        <SessionActivityTracker />
+        <BuildVersionWatcher />
+        <ServiceWorkerRegister />
+      </body>
+    </html>
+  );
+}

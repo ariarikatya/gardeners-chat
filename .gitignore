@@ -1,0 +1,64 @@
+# Dependencies
+node_modules/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+.ENV
+.python-version
+
+# Build outputs
+dist/
+build/
+.next/
+*.egg-info/
+
+# Environment variables
+.env
+.env.local
+.env.*
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Coverage
+.coverage
+coverage/
+htmlcov/
+
+# Temp files
+*.tmp
+*.temp
+
+# Offline cache warmup artifacts
+public/offline-cache/
+# Google service account key (private)
+google-key.json
+
+# Test outputs & screenshots
+test-*.png
+test-results/
+
+# Local image uploads directory
+uploads/
+/opt/anemon/uploads
+
+# Auto-generated service worker version
+lib/swVersion.generated.js
+lib/version.js
