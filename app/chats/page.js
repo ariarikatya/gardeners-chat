@@ -133,11 +133,13 @@ function isImageAttachment(attachment) {
 }
 
 function isVideoAttachment(attachment) {
+  if (attachment.filename?.startsWith('voice-')) return false;
   return attachment.mimeType?.startsWith('video/') || /\.(3gp|avi|m4v|mkv|mov|mp4|ogv|webm)$/i.test(attachment.filename || '');
 }
 
 function isAudioAttachment(attachment) {
-  return attachment.mimeType?.startsWith('audio/') || /\.(m4a|mp3|oga|ogg|opus|wav|weba|webm)$/i.test(attachment.filename || '');
+  if (attachment.filename?.startsWith('voice-')) return true;
+  return attachment.mimeType?.startsWith('audio/') || /\.(m4a|mp3|oga|ogg|opus|wav|weba)$/i.test(attachment.filename || '');
 }
 
 function isImageFile(file) {
@@ -276,9 +278,7 @@ function AttachmentPreview({ attachment, compact = false, flat = false, onOpenMe
     );
   }
   if (isAudioAttachment(attachment)) {
-    return (
-      <audio controls preload="metadata" src={attachment.url} className="h-10 max-w-full" aria-label={attachment.filename} />
-    );
+    return <VoiceMessage attachment={attachment} />;
   }
   return (
     <a
@@ -293,6 +293,170 @@ function AttachmentPreview({ attachment, compact = false, flat = false, onOpenMe
       <span className="min-w-0 break-all">{attachment.filename}</span>
       <span className="shrink-0 text-xs text-slate-400">Скачать</span>
     </a>
+  );
+}
+
+function VoiceMessage({ attachment }) {
+  const [duration, setDuration] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [playing, setPlaying] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const audioRef = useRef(null);
+  const progressIntervalRef = useRef(null);
+
+  const stopProgressTracking = () => {
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+      progressIntervalRef.current = null;
+    }
+  };
+
+  const pauseAllOthers = () => {
+    if (typeof window !== 'undefined') {
+      document.querySelectorAll('audio[data-voice-message]').forEach((el) => {
+        if (el !== audioRef.current) {
+          el.pause();
+          el.currentTime = 0;
+        }
+      });
+    }
+  };
+
+  const formatTime = (seconds) => {
+    if (!seconds || !Number.isFinite(seconds) || seconds <= 0) return '0:00';
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${String(secs).padStart(2, '0')}`;
+  };
+
+  const handlePlayPause = () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (audio.paused) {
+      pauseAllOthers();
+      audio.play().catch((err) => console.error('Play failed:', err));
+      setPlaying(true);
+      progressIntervalRef.current = setInterval(() => {
+        if (!audio.paused && audio.duration) {
+          setCurrentTime(audio.currentTime);
+        }
+      }, 100);
+    } else {
+      audio.pause();
+      setPlaying(false);
+      stopProgressTracking();
+    }
+  };
+
+  const handleProgressClick = (e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const percentage = x / rect.width;
+    if (audioRef.current && duration > 0) {
+      audioRef.current.currentTime = percentage * duration;
+      setCurrentTime(percentage * duration);
+    }
+  };
+
+  useEffect(() => {
+    const audio = new Audio(attachment.url);
+    audio.dataset.voiceMessage = 'true';
+    audio.preload = 'metadata';
+    audioRef.current = audio;
+
+    let cancelled = false;
+
+    const onLoadedMetadata = () => {
+      if (Number.isFinite(audio.duration) && audio.duration > 0) {
+        setDuration(audio.duration);
+        setLoaded(true);
+      } else {
+        // webm без метаданных — вычисляем через AudioContext
+        fetch(attachment.url)
+          .then((r) => r.arrayBuffer())
+          .then((buf) => {
+            const Ctx = window.AudioContext || window.webkitAudioContext;
+            const ctx = new Ctx();
+            return ctx.decodeAudioData(buf).then((decoded) => {
+              ctx.close();
+              if (!cancelled) {
+                setDuration(decoded.duration);
+                setLoaded(true);
+              }
+            });
+          })
+          .catch(() => {
+            if (!cancelled) setLoaded(true);
+          });
+      }
+    };
+    const onTimeUpdate = () => setCurrentTime(audio.currentTime);
+    const onEnded = () => {
+      setPlaying(false);
+      setCurrentTime(0);
+      stopProgressTracking();
+    };
+    const onError = () => setLoaded(true);
+
+    audio.addEventListener('loadedmetadata', onLoadedMetadata);
+    audio.addEventListener('timeupdate', onTimeUpdate);
+    audio.addEventListener('ended', onEnded);
+    audio.addEventListener('error', onError);
+    audio.load();
+
+    return () => {
+      cancelled = true;
+      audio.removeEventListener('loadedmetadata', onLoadedMetadata);
+      audio.removeEventListener('timeupdate', onTimeUpdate);
+      audio.removeEventListener('ended', onEnded);
+      audio.removeEventListener('error', onError);
+      stopProgressTracking();
+      audio.pause();
+      audio.src = '';
+    };
+  }, [attachment.url]);
+
+  const progressPercentage = duration > 0 ? (currentTime / duration) * 100 : 0;
+
+  return (
+    <div className="flex items-center gap-3 rounded-xl bg-slate-100 px-3 py-2 min-w-0 max-w-[min(60vw,22rem)]">
+      <button
+        type="button"
+        onClick={handlePlayPause}
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-800 hover:bg-emerald-200 transition-colors"
+        aria-label={playing ? 'Приостановить' : 'Воспроизвести'}
+      >
+        {playing ? (
+          <svg aria-hidden="true" viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor">
+            <path d="M5.5 4.5h3v11h-3zm6 0h3v11h-3z" />
+          </svg>
+        ) : (
+          <svg aria-hidden="true" viewBox="0 0 20 20" className="h-4 w-4 ml-0.5" fill="currentColor">
+            <path d="M6 4.5a1 1 0 0 1 1.5-.86l7 4.5a2.2 2.2 0 0 1 0 3.72l-7 4.5A1 1 0 0 1 6 15.5z" />
+          </svg>
+        )}
+      </button>
+      
+      <div className="flex flex-1 min-w-0 items-center gap-2">
+        <div
+          className="relative h-2 flex-1 cursor-pointer rounded-full bg-slate-300"
+          onClick={handleProgressClick}
+        >
+          <div
+            className="absolute left-0 top-0 h-full rounded-full bg-emerald-500"
+            style={{ width: `${progressPercentage}%` }}
+          />
+          <div
+            className="absolute top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-emerald-600 shadow"
+            style={{ left: `${progressPercentage}%` }}
+          />
+        </div>
+      </div>
+      
+      <span className="shrink-0 text-xs font-mono tabular-nums text-slate-600 min-w-[3.5ch] text-right">
+        {loaded ? formatTime(duration) : '0:00'}
+      </span>
+    </div>
   );
 }
 
@@ -391,6 +555,7 @@ export default function ChatsPage() {
   const [forwardPickerOpen, setForwardPickerOpen] = useState(false);
   const [messageMenu, setMessageMenu] = useState(null);
   const [notificationsDropdownOpen, setNotificationsDropdownOpen] = useState(false);
+  const [deletedMessagesMap, setDeletedMessagesMap] = useState(new Map());
   const voiceTimerRef = useRef(null);
   const voiceAnimationFrameRef = useRef(null);
   const voiceVisualizerRef = useRef(null);
@@ -626,7 +791,7 @@ export default function ChatsPage() {
     };
   }, [settingsOpen]);
 
-  useEffect(() => {
+useEffect(() => {
     if (!activeChatId) {
       setChatPresence({});
       setChatSettings(null);
@@ -659,6 +824,22 @@ export default function ChatsPage() {
       window.clearInterval(timer);
     };
   }, [activeChatId]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
+      setDeletedMessagesMap((prev) => {
+        const next = new Map();
+        prev.forEach((deletedAt, messageId) => {
+          if (deletedAt > fiveMinutesAgo) {
+            next.set(messageId, deletedAt);
+          }
+        });
+        return next;
+      });
+    }, 30000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => () => {
     voiceStartVersionRef.current += 1;
@@ -996,12 +1177,29 @@ export default function ChatsPage() {
     if (!window.confirm('Удалить сообщение у всех участников?')) return;
     try {
       await requestJson(`/api/chats/messages/${encodeURIComponent(message.id)}`, { method: 'DELETE' });
+      
+      setDeletedMessagesMap((prev) => {
+        const next = new Map(prev);
+        next.set(message.id, Date.now());
+        return next;
+      });
+      
       setMessages((current) => current.map((item) => (
         item.id === message.id
           ? { ...item, body: null, isDeleted: true, attachments: [], canEdit: false, canDelete: false }
           : item
       )));
+      
       await loadChats();
+      
+      window.setTimeout(() => {
+        setMessages((current) => current.filter((item) => item.id !== message.id));
+        setDeletedMessagesMap((prev) => {
+          const next = new Map(prev);
+          next.delete(message.id);
+          return next;
+        });
+      }, 5 * 60 * 1000);
     } catch (requestError) {
       setError(requestError.message || 'Не удалось удалить сообщение');
     }
@@ -1185,7 +1383,7 @@ export default function ChatsPage() {
         }
         const extension = mimeType.includes('mp4') ? 'm4a' : mimeType.includes('ogg') ? 'ogg' : 'webm';
         const file = new File([blob], `voice-${Date.now()}.${extension}`, {
-          type: blob.type || mimeType,
+          type: 'audio/webm',
         });
         const url = URL.createObjectURL(blob);
         voicePreviewAudioRef.current?.pause();
@@ -1623,40 +1821,43 @@ export default function ChatsPage() {
                 {!loadingMessages && messages.length === 0 ? (
                   <p className="py-12 text-center text-sm text-slate-500">{messageSearch ? 'Ничего не найдено' : 'Сообщений пока нет. Напишите первым!'}</p>
                 ) : null}
-                {messages.map((message, index) => {
-                  const own = message.senderId === user?.id;
-                  const previousMessage = messages[index - 1];
-                  const startsNewDay = !previousMessage
-                    || new Date(previousMessage.createdAt).toDateString() !== new Date(message.createdAt).toDateString();
-                  const hasAttachments = !message.isDeleted && message.attachments?.length > 0;
-                  const onlyMedia = !message.isDeleted
-                    && !message.body
-                    && !message.forwardedBody
-                    && message.attachments?.length > 0;
-                  const mediaMetadataOverlay = onlyMedia
-                    && message.attachments.every((attachment) => isImageAttachment(attachment) || isVideoAttachment(attachment));
-                  const shortMediaMessage = Boolean(
-                    hasAttachments
-                    && message.body
-                    && message.body.trim().split('\n').length <= 2
-                    && message.body.length <= 60
-                  );
-                  const mediaEdgeClass = onlyMedia
-                    ? ''
-                    : `-mx-3 ${message.replyToMessage || message.forwardedFromUser || (!own && activeChat.isGroup) ? '' : '-mt-2'}`;
-                  const shortText = Boolean(
-                    message.body
-                    && !message.attachments?.length
-                    && message.body.trim().split('\n').length <= 2
-                    && message.body.length <= 60
-                    && !message.forwardedBody
-                  );
-                  const time = <time dateTime={message.createdAt}>{formatTime(message.createdAt)}</time>;
-                  const receiptColor = message.readByAll ? 'text-sky-600' : 'text-slate-500';
-                  const showMessageActions = own && editingMessageId !== message.id
-                    && (message.canEdit || message.canDelete);
-                  return (
-                    <div key={message.id}>
+{messages.map((message, index) => {
+                    const own = message.senderId === user?.id;
+                    const previousMessage = messages[index - 1];
+                    const startsNewDay = !previousMessage
+                      || new Date(previousMessage.createdAt).toDateString() !== new Date(message.createdAt).toDateString();
+                    const hasAttachments = !message.isDeleted && message.attachments?.length > 0;
+                    const onlyMedia = !message.isDeleted
+                      && !message.body
+                      && !message.forwardedBody
+                      && message.attachments?.length > 0;
+                    const mediaMetadataOverlay = onlyMedia
+                      && message.attachments.every((attachment) => isImageAttachment(attachment) || isVideoAttachment(attachment));
+                    const shortMediaMessage = Boolean(
+                      hasAttachments
+                      && message.body
+                      && message.body.trim().split('\n').length <= 2
+                      && message.body.length <= 60
+                    );
+                    const mediaEdgeClass = onlyMedia
+                      ? ''
+                      : `-mx-3 ${message.replyToMessage || message.forwardedFromUser || (!own && activeChat.isGroup) ? '' : '-mt-2'}`;
+                    const shortText = Boolean(
+                      message.body
+                      && !message.attachments?.length
+                      && message.body.trim().split('\n').length <= 2
+                      && message.body.length <= 60
+                      && !message.forwardedBody
+                    );
+                    const time = <time dateTime={message.createdAt}>{formatTime(message.createdAt)}</time>;
+                    const receiptColor = message.readByAll ? 'text-sky-600' : 'text-slate-500';
+                    const showMessageActions = own && editingMessageId !== message.id
+                      && (message.canEdit || message.canDelete);
+                    if (message.isDeleted && !deletedMessagesMap.has(message.id)) {
+                      return null;
+                    }
+                    return (
+                      <div key={message.id}>
                       {startsNewDay && (
                         <div className="mb-3 mt-4 flex justify-center">
                           <span className="rounded-full bg-slate-200/80 px-3 py-1 text-[11px] font-medium text-slate-600">
