@@ -1,15 +1,5 @@
-'use client';
-
-import { useEffect } from 'react';
+import { redirect } from 'next/navigation';
 
 export default function Home() {
-  useEffect(() => {
-    const role = typeof window !== 'undefined' ? localStorage.getItem('auth_role') : null;
-    if (role === 'GARDENER') {
-      window.location.replace('/chats');
-    } else {
-      window.location.replace('/login');
-    }
-  }, []);
-  return null;
+  redirect('/chats');
 }
