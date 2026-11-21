@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import apiFetch from '@/lib/apiFetch';
 import { compressImage, convertHeicIfNeeded } from '@/lib/imageCompress';
@@ -1205,7 +1204,7 @@ useEffect(() => {
     }
   };
 
-  const closeChat = () => {
+const closeChat = () => {
     activeChatRef.current = '';
     setActiveChatId('');
     setMessages([]);
@@ -1222,6 +1221,18 @@ useEffect(() => {
     deleteVoiceRecording();
     loadedChatIdRef.current = '';
     window.history.replaceState(null, '', '/chats');
+  };
+
+  const handleLogout = async () => {
+    try {
+      await requestJson('/api/auth/logout', { method: 'POST' });
+    } catch (e) {}
+    try {
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('auth_role');
+      sessionStorage.setItem('manual_logout', '1');
+    } catch (e) {}
+    window.location.assign('/login');
   };
 
   const applyChatSetting = async (action, duration) => {
@@ -1603,7 +1614,7 @@ useEffect(() => {
       <header className="shrink-0 bg-emerald-900 px-4 py-3 text-white shadow">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
-            <button type="button" onClick={() => activeChatId ? closeChat() : router.push(homePath)} className="rounded-lg bg-emerald-800 px-3 py-2 text-sm hover:bg-emerald-700">
+            <button type="button" onClick={() => activeChatId ? closeChat() : handleLogout()} className="rounded-lg bg-emerald-800 px-3 py-2 text-sm hover:bg-emerald-700">
               ← <span className="hidden sm:inline">{activeChatId ? 'Чаты' : 'Назад'}</span>
             </button>
             <div className="min-w-0">
@@ -1611,6 +1622,9 @@ useEffect(() => {
               <p className="truncate text-xs text-emerald-100">{user?.name || 'Переписка сотрудников'}</p>
             </div>
           </div>
+          <button type="button" onClick={handleLogout} className="shrink-0 rounded-lg bg-emerald-800 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700">
+            Выйти
+          </button>
           <button type="button" onClick={() => { setError(''); setNewChatOpen(true); }} className="shrink-0 rounded-lg bg-white px-3 py-2 text-sm font-semibold text-emerald-900 hover:bg-emerald-50">
             + Новый чат
           </button>
@@ -2463,7 +2477,7 @@ useEffect(() => {
       )}
 
       <footer className="px-4 pb-4 text-center text-[11px] text-slate-400 md:hidden">
-        <Link href={homePath} className="underline">Вернуться в приложение</Link>
+        <button type="button" onClick={handleLogout} className="underline">Выйти из аккаунта</button>
       </footer>
     </main>
   );
