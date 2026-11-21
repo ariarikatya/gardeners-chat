@@ -1602,21 +1602,16 @@ const closeChat = () => {
   const activeChatRecipient = activeChat && !activeChat.isGroup
     ? activeChat.participants[0]
     : null;
-  const profileAttachments = allAttachments;
-  const recipientIsOnline = Boolean(activeChatRecipient && chatPresence[activeChatRecipient.id]?.isOnline);
-  const recipientStatusText = activeChatRecipient
-    ? (recipientIsOnline ? 'В сети' : formatRelativeOnline(activeChatRecipient.lastActive))
-    : (activeChat?.isGroup ? `${activeChat.participants.length} участников` : 'Личный чат');
-  const forwardingDraftMessage = forwardingTargetChosen ? forwardingMessage : null;
-  const homePath = user?.role === 'ADMIN' ? '/admin' : user?.role === 'LEADER' ? '/leader' : '/gardener';
   return (
     <main className="chat-page flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-slate-100 text-slate-800">
       <header className="shrink-0 bg-emerald-900 px-4 py-3 text-white shadow">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
-            <button type="button" onClick={() => activeChatId ? closeChat() : handleLogout()} className="rounded-lg bg-emerald-800 px-3 py-2 text-sm hover:bg-emerald-700">
-              ← <span className="hidden sm:inline">{activeChatId ? 'Чаты' : 'Назад'}</span>
-            </button>
+            {activeChatId && (
+              <button type="button" onClick={closeChat} className="rounded-lg bg-emerald-800 px-3 py-2 text-sm hover:bg-emerald-700">
+                ← <span className="hidden sm:inline">Чаты</span>
+              </button>
+            )}
             <div className="min-w-0">
               <h1 className="text-lg font-bold">Чаты</h1>
               <p className="truncate text-xs text-emerald-100">{user?.name || 'Переписка сотрудников'}</p>

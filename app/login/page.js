@@ -217,7 +217,7 @@ export default function LoginPage() {
           notifySwOfflinePhone(phoneToUse);
           recordIdentityToSw(phoneToUse, resolvedRole);
         }
-        await notifySwOfflineSession(true, resolvedRole);
+        Promise.race([notifySwOfflineSession(true, resolvedRole), new Promise((r) => setTimeout(r, 1500))]).catch(() => {});
         triggerSwPrecacheRoles();
 
         redirectByRole(resolvedRole, true, phoneToUse);
@@ -309,7 +309,7 @@ export default function LoginPage() {
       const cleanPhone = normalizeCleanPhone(phoneToUse);
       if (cleanPhone) {
         localStorage.setItem('auth_phone', cleanPhone);
-        await notifySwOfflinePhone(cleanPhone);
+        Promise.race([notifySwOfflinePhone(cleanPhone), new Promise((r) => setTimeout(r, 1500))]).catch(() => {});
       }
       if (data.token) {
         localStorage.setItem('auth_token', data.token);
@@ -325,7 +325,7 @@ export default function LoginPage() {
         } catch (e) {}
         if (cleanPhone) {
           savePhoneRoleMap(cleanPhone, data.role, data.name || data.userName || null, 'login');
-          await recordIdentityToSw(cleanPhone, data.role, data.name || data.userName || null);
+          Promise.race([recordIdentityToSw(cleanPhone, data.role, data.name || data.userName || null), new Promise((r) => setTimeout(r, 1500))]).catch(() => {});
         }
       }
 
