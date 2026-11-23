@@ -106,6 +106,21 @@ function formatLastSeen(lastActive) {
   return `Был в сети ${date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}, ${time}`;
 }
 
+function formatPhone(phone, hidePhone) {
+  if (!phone) return '';
+  const digits = phone.replace(/\D/g, '');
+  if (hidePhone) {
+    if (digits.length >= 3) {
+      return `+${digits.slice(0, 2)} ***`;
+    }
+    return phone;
+  }
+  if (digits.length === 11) {
+    return `+${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4, 7)}-${digits.slice(7, 9)}-${digits.slice(9, 11)}`;
+  }
+  return phone;
+}
+
 async function requestJson(url, options = {}) {
   const response = await apiFetch(url, { ...options, bypassOfflineCache: true, cache: 'no-store' });
   const data = await response.json().catch(() => ({}));
@@ -638,6 +653,58 @@ export default function ChatsPage() {
     initialize();
     return () => { cancelled = true; };
   }, [loadChats]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('Notification' in window)) return;
+    const prompted = sessionStorage.getItem('push_prompted');
+    if (prompted) return;
+    if (!user) return;
+    if (Notification.permission !== 'default') return;
+
+    let cancelled = false;
+    async function promptPushPermission() {
+      try {
+        const permission = await Notification.requestPermission();
+        if (cancelled) return;
+        sessionStorage.setItem('push_prompted', '1');
+        if (permission === 'granted') {
+          const registration = await navigator.serviceWorker.ready;
+          const vapidResponse = await fetch('/api/push/vapid-public-key');
+          const { key } = await vapidResponse.json();
+          if (!key) return;
+          const subscription = await registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(key),
+          });
+          await apiFetch('/api/push/subscribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              endpoint: subscription.endpoint,
+              p256dh: btoa(String.fromCharCode(...new Uint8Array(subscription.getKey('p256dh')))),
+              auth: btoa(String.fromCharCode(...new Uint8Array(subscription.getKey('auth')))),
+            }),
+          });
+        }
+      } catch (e) {
+        console.warn('Push permission prompt failed:', e);
+        if (!cancelled) sessionStorage.setItem('push_prompted', '1');
+      }
+    }
+    promptPushPermission();
+    return () => { cancelled = true; };
+  }, [user]);
+
+  function urlBase64ToUint8Array(base64String) {
+    const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; ++i) {
+      outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+  }
 
   useEffect(() => {
     activeChatRef.current = activeChatId;
@@ -1665,7 +1732,7 @@ const closeChat = () => {
               <p className="truncate text-xs text-emerald-100">{user?.name || 'Переписка сотрудников'}</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+<div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => setSettingsDrawerOpen(true)}
@@ -1675,6 +1742,19 @@ const closeChat = () => {
               <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <circle cx="12" cy="12" r="3" />
                 <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              onClick={() => { setError(''); setInviteModalOpen(true); setInvitePhone(''); }}
+              className="rounded-lg p-2 text-slate-200 hover:bg-emerald-800 hover:text-white transition-colors"
+              aria-label="Пригласить по номеру"
+            >
+              <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <line x1="19" y1="8" x2="19" y2="14" />
+                <line x1="22" y1="11" x2="16" y2="11" />
               </svg>
             </button>
             <button type="button" onClick={() => { setError(''); setNewChatOpen(true); }} className="shrink-0 rounded-lg bg-white px-3 py-2 text-sm font-semibold text-emerald-900 hover:bg-emerald-50">
@@ -1808,8 +1888,18 @@ const closeChat = () => {
                   <button
                     type="button"
                     onClick={closeChat}
-                    className="flex min-w-0 items-center gap-3 text-left hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg p-1 -m-1"
+                    className="flex shrink-0 items-center justify-center h-9 w-9 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                     aria-label="Вернуться к списку чатов"
+                  >
+                    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M15 18l-6-6 6-6"/>
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openParticipants(activeChat.id)}
+                    className="flex min-w-0 items-center gap-3 text-left hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg p-1 -m-1"
+                    aria-label="Участники чата"
                   >
                     <span className="relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-200 dark:border-slate-700 bg-emerald-100 dark:bg-emerald-900 text-sm font-bold text-emerald-800 dark:text-emerald-300">
                       {activeChatRecipient?.photo ? (
@@ -1833,9 +1923,6 @@ const closeChat = () => {
                         <div className="space-y-1">
                           <button type="button" onClick={() => { setSearchOpen(true); setMessageSearch(''); setSettingsOpen(false); }} className="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left hover:bg-slate-50 dark:hover:bg-slate-800">
                             <span>Найти</span><span aria-hidden="true" className="text-slate-400 dark:text-slate-500">⌕</span>
-                          </button>
-                          <button type="button" onClick={() => { setSettingsOpen(false); setInviteModalOpen(true); setInvitePhone(''); }} className="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left hover:bg-slate-50 dark:hover:bg-slate-800">
-                            <span>Пригласить по номеру</span><span aria-hidden="true" className="text-slate-400 dark:text-slate-500">›</span>
                           </button>
                           <button type="button" onClick={() => openParticipants(activeChat.id)} className="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left hover:bg-slate-50 dark:hover:bg-slate-800">
                             <span>Участники</span><span aria-hidden="true" className="text-slate-400 dark:text-slate-500">›</span>
@@ -1892,19 +1979,6 @@ const closeChat = () => {
                       </div>
                     )}
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => { setSettingsOpen(false); setInviteModalOpen(true); setInvitePhone(''); }}
-                    className="rounded-full p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
-                    aria-label="Пригласить по номеру"
-                  >
-                    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                      <path d="M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                      <circle cx="9" cy="7" r="4" />
-                      <line x1="19" y1="8" x2="19" y2="14" />
-                      <line x1="22" y1="11" x2="16" y2="11" />
-                    </svg>
-                  </button>
                 </div>
               </div>
 
@@ -2405,6 +2479,9 @@ const closeChat = () => {
                         {participant.isOnline
                           ? <span className="ml-1 font-medium text-emerald-700 dark:text-emerald-300">· В сети</span>
                           : <span className="ml-1">· {formatLastSeen(participant.lastActive)}</span>}
+                      </span>
+                      <span className="block text-xs text-slate-500 dark:text-slate-400 mt-1">
+                        {formatPhone(participant.phone, participant.hidePhone)}
                       </span>
                     </span>
                     {participantsCanManage && participant.id !== user?.id && (

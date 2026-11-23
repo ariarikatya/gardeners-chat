@@ -16,6 +16,9 @@ export default function SettingsDrawer({ open, onClose, user }) {
   const [deletePassword, setDeletePassword] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [pushSubscribed, setPushSubscribed] = useState(false);
+  const [pushLoading, setPushLoading] = useState(false);
+  const [hidePhone, setHidePhone] = useState(true);
 
   useEffect(() => {
     if (open) {
@@ -24,8 +27,10 @@ export default function SettingsDrawer({ open, onClose, user }) {
       setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
       setError('');
       setSuccess('');
+      setHidePhone(user?.hidePhone ?? true);
       const savedTheme = localStorage.getItem('chat_theme');
       setTheme(savedTheme || 'system');
+      checkPushSubscription();
     }
   }, [open, user]);
 
@@ -75,6 +80,7 @@ export default function SettingsDrawer({ open, onClose, user }) {
       const body = {
         name: profileData.name.trim(),
         phone: profileData.phone.replace(/\D/g, ''),
+        hidePhone,
       };
       if (passwordData.currentPassword || passwordData.newPassword || passwordData.confirmPassword) {
         if (!passwordData.currentPassword) {
@@ -152,10 +158,101 @@ export default function SettingsDrawer({ open, onClose, user }) {
       } catch (e) {}
       window.location.assign('/login');
     } catch (err) {
-      setError(err.message || 'Ошибка при удалении аккаунта');
+      setError(err.message || 'Ошибка при удалении аккаунт');
       setDeleting(false);
     }
   };
+
+  const checkPushSubscription = async () => {
+    if (typeof window === 'undefined' || !('Notification' in window)) return;
+    try {
+      const response = await apiFetch('/api/auth/me');
+      const data = await response.json();
+      if (data.user) {
+        const subResponse = await apiFetch('/api/push/subscribe', { method: 'GET' });
+        // We can't easily check subscription without a dedicated endpoint, so we'll check via service worker
+        const registration = await navigator.serviceWorker.ready;
+        const subscription = await registration.pushManager.getSubscription();
+        setPushSubscribed(!!subscription);
+      }
+    } catch (e) {
+      console.warn('Failed to check push subscription:', e);
+    }
+  };
+
+  const handlePushSubscribe = async () => {
+    if (typeof window === 'undefined' || !('Notification' in window)) return;
+    setPushLoading(true);
+    setError('');
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') {
+        setError('Разрешение на уведомления не получено');
+        return;
+      }
+      const registration = await navigator.serviceWorker.ready;
+      const vapidResponse = await fetch('/api/push/vapid-public-key');
+      const { key } = await vapidResponse.json();
+      if (!key) {
+        setError('VAPID ключ не настроен на сервере');
+        return;
+      }
+      const subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(key),
+      });
+      await apiFetch('/api/push/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          endpoint: subscription.endpoint,
+          p256dh: btoa(String.fromCharCode(...new Uint8Array(subscription.getKey('p256dh')))),
+          auth: btoa(String.fromCharCode(...new Uint8Array(subscription.getKey('auth')))),
+        }),
+      });
+      setPushSubscribed(true);
+      setSuccess('Уведомления включены');
+    } catch (err) {
+      setError(err.message || 'Не удалось включить уведомления');
+    } finally {
+      setPushLoading(false);
+    }
+  };
+
+  const handlePushUnsubscribe = async () => {
+    if (typeof window === 'undefined' || !('Notification' in window)) return;
+    setPushLoading(true);
+    setError('');
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      const subscription = await registration.pushManager.getSubscription();
+      if (subscription) {
+        await subscription.unsubscribe();
+        await apiFetch('/api/push/unsubscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ endpoint: subscription.endpoint }),
+        });
+      }
+      setPushSubscribed(false);
+      setSuccess('Уведомления выключены');
+    } catch (err) {
+      setError(err.message || 'Не удалось выключить уведомления');
+    } finally {
+      setPushLoading(false);
+    }
+  };
+
+  function urlBase64ToUint8Array(base64String) {
+    const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; ++i) {
+      outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+  }
 
   if (!open) return null;
 
@@ -165,9 +262,6 @@ export default function SettingsDrawer({ open, onClose, user }) {
     )},
     { id: 'appearance', label: 'Оформление', icon: (
       <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
-    )},
-    { id: 'storage', label: 'Хранилище', icon: (
-      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12V7H5V2H1l4 5 4-5h6v5h-4v5h4v5l-4 5-4-5h-6v5h16v-5z"/></svg>
     )},
     { id: 'about', label: 'Об приложении', icon: (
       <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
@@ -244,6 +338,17 @@ export default function SettingsDrawer({ open, onClose, user }) {
                   className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-800 dark:text-slate-100 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
                 />
               </div>
+              <div className="space-y-3 border-t border-slate-200 dark:border-slate-700 pt-4 mt-2">
+                <label className="flex items-center gap-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={hidePhone}
+                    onChange={(e) => setHidePhone(e.target.checked)}
+                    className="h-4 w-4 text-emerald-600 border-slate-300 focus:ring-emerald-500"
+                  />
+                  <span className="font-medium text-slate-800 dark:text-slate-100">Скрывать мой номер телефона</span>
+                </label>
+              </div>
               <div className="border-t border-slate-200 dark:border-slate-700 pt-4 mt-2">
                 <h4 className="font-medium text-slate-800 dark:text-slate-100 mb-3">Смена пароля</h4>
                 <div className="space-y-3">
@@ -275,6 +380,47 @@ export default function SettingsDrawer({ open, onClose, user }) {
                     />
                   </div>
                   <p className="text-xs text-slate-500 dark:text-slate-400">Оставьте поля пустыми, чтобы не менять пароль</p>
+                </div>
+              </div>
+              <div className="border-t border-slate-200 dark:border-slate-700 pt-4 mt-2">
+                <h4 className="font-medium text-slate-800 dark:text-slate-100 mb-3">Уведомления</h4>
+                <div className="space-y-3">
+                  {typeof window !== 'undefined' && 'Notification' in window ? (
+                    Notification.permission === 'default' ? (
+                      <button
+                        type="button"
+                        onClick={handlePushSubscribe}
+                        disabled={pushLoading}
+                        className="w-full rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {pushLoading ? 'Подключение…' : 'Включить уведомления'}
+                      </button>
+                    ) : Notification.permission === 'granted' ? (
+                      pushSubscribed ? (
+                        <button
+                          type="button"
+                          onClick={handlePushUnsubscribe}
+                          disabled={pushLoading}
+                          className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50"
+                        >
+                          {pushLoading ? 'Отключение…' : 'Выключить уведомления'}
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={handlePushSubscribe}
+                          disabled={pushLoading}
+                          className="w-full rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {pushLoading ? 'Подключение…' : 'Включить уведомления'}
+                        </button>
+                      )
+                    ) : (
+                      <p className="text-sm text-slate-600 dark:text-slate-400">Уведомления запрещены в настройках браузера</p>
+                    )
+                  ) : (
+                    <p className="text-sm text-slate-600 dark:text-slate-400">Уведомления не поддерживаются в этом браузере</p>
+                  )}
                 </div>
               </div>
               <button
@@ -311,20 +457,6 @@ export default function SettingsDrawer({ open, onClose, user }) {
             </div>
           )}
 
-          {activeSection === 'storage' && (
-            <div className="space-y-4">
-              <h3 className="font-semibold text-slate-800 dark:text-slate-100">Хранилище</h3>
-              <p className="text-sm text-slate-600 dark:text-slate-400">Очистка кэша удалит все локальные данные (Service Worker кэш, offline-ключи), но не выйдет из аккаунта.</p>
-              <button
-                type="button"
-                onClick={handleClearCache}
-                className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
-              >
-                Очистить кэш
-              </button>
-            </div>
-          )}
-
           {activeSection === 'about' && (
             <div className="space-y-4">
               <h3 className="font-semibold text-slate-800 dark:text-slate-100">Об приложении</h3>
@@ -337,6 +469,16 @@ export default function SettingsDrawer({ open, onClose, user }) {
                   <span className="text-slate-500 dark:text-slate-400">Платформа</span>
                   <span className="font-mono text-slate-800 dark:text-slate-100">Next.js + React + Prisma + Tailwind</span>
                 </div>
+              </div>
+              <div className="border-t border-slate-200 dark:border-slate-700 pt-4 mt-2">
+                <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">Очистка кэша удалит все локальные данные (Service Worker кэш, offline-ключи), но не выйдет из аккаунта.</p>
+                <button
+                  type="button"
+                  onClick={handleClearCache}
+                  className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
+                >
+                  Очистить кэш
+                </button>
               </div>
             </div>
           )}

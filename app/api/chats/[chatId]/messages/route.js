@@ -346,29 +346,35 @@ export async function POST(req, { params }) {
       !isMuted || (mutedUntil && mutedUntil <= now)
     ));
     if (activeRecipients.length) {
-      const chat = await prisma.chat.findUnique({ where: { id: params.chatId }, select: { name: true, isGroup: true } });
       const senderName = auth.user.name || 'Пользователь';
-      const chatName = chat?.name || 'чат';
       const trimmedBody = body.replace(/\s+/g, ' ').trim();
-      const previewText = trimmedBody ? trimmedBody.slice(0, 50) : '';
-      const pushBody = trimmedBody
-        ? `Новое сообщение от ${senderName}: ${previewText}${trimmedBody.length > 50 ? '…' : ''}`
-        : (uploaded.length ? `Новое фото в чате ${chatName}` : `Новое сообщение от ${senderName}`);
-      const pushTitle = uploaded.length && !trimmedBody
-        ? `Новое фото в чате ${chatName}`
-        : `Новое сообщение от ${senderName}`;
+      let pushBody = '';
+      if (trimmedBody) {
+        pushBody = trimmedBody.slice(0, 80);
+      } else if (uploaded.length) {
+        const attachment = uploaded[0];
+        if (attachment.mimeType?.startsWith('image/')) pushBody = 'Фото';
+        else if (attachment.mimeType?.startsWith('video/')) pushBody = 'Видео';
+        else if (attachment.mimeType?.startsWith('audio/') || attachment.filename?.startsWith('voice-')) pushBody = 'Голосовое сообщение';
+        else pushBody = 'Вложение';
+      } else if (forwardedSource) {
+        pushBody = 'Пересланное сообщение';
+      }
+      const pushTitle = senderName;
+      const pushUrl = `/chats?chat=${encodeURIComponent(params.chatId)}`;
 
-      const pushResult = await sendToUsers(
-        activeRecipients.map(({ userId }) => userId),
-        {
-          title: pushTitle,
-          body: pushBody,
-          tag: `chat-${params.chatId}`,
-          url: `/chats?chat=${encodeURIComponent(params.chatId)}`,
-        }
-      );
-      if (pushResult.failedCount > 0) {
-        console.error(`[Chats] Web Push failed for ${pushResult.failedCount} recipient(s) in chat ${params.chatId}`);
+      try {
+        await sendToUsers(
+          activeRecipients.map(({ userId }) => userId),
+          {
+            title: pushTitle,
+            body: pushBody,
+            tag: `chat-${params.chatId}`,
+            url: pushUrl,
+          }
+        );
+      } catch (pushError) {
+        console.error('[Chats] Web Push error:', pushError.message);
       }
     }
 

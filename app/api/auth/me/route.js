@@ -22,7 +22,7 @@ export async function GET(req) {
   try {
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, phone: true, name: true, role: true, gardenerId: true, notifPermission: true, notificationsEnabled: true }
+      select: { id: true, phone: true, name: true, role: true, gardenerId: true, notifPermission: true, notificationsEnabled: true, hidePhone: true }
     });
     if (!user) return NextResponse.json({ user: null });
     await prisma.user.update({
@@ -45,7 +45,7 @@ export async function PATCH(req) {
 
   try {
     const body = await req.json();
-    const { name, phone, currentPassword, newPassword } = body;
+    const { name, phone, currentPassword, newPassword, hidePhone } = body;
 
     const updateData = {};
     if (typeof name === 'string' && name.trim()) updateData.name = name.trim();
@@ -53,6 +53,7 @@ export async function PATCH(req) {
       const normalizedPhone = phone.replace(/\D/g, '');
       if (normalizedPhone) updateData.phone = normalizedPhone;
     }
+    if (typeof hidePhone === 'boolean') updateData.hidePhone = hidePhone;
 
     if (newPassword) {
       if (!currentPassword) {
@@ -75,7 +76,7 @@ export async function PATCH(req) {
     const updatedUser = await prisma.user.update({
       where: { id: userId },
       data: updateData,
-      select: { id: true, phone: true, name: true, role: true, gardenerId: true, notifPermission: true, notificationsEnabled: true }
+      select: { id: true, phone: true, name: true, role: true, gardenerId: true, notifPermission: true, notificationsEnabled: true, hidePhone: true }
     });
 
     return NextResponse.json({ user: updatedUser });

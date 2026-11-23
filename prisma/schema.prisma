@@ -23,6 +23,7 @@ model User {
   vkId                 String?   // VK user id / peer id for notifications
   notifPermission      String?
   notificationsEnabled Boolean   @default(false)
+  hidePhone            Boolean   @default(true)
   lastActive           DateTime?
   gardenerId           String?   @unique
   gardener             Gardener? @relation(fields: [gardenerId], references: [id], onDelete: Cascade)
@@ -321,14 +322,13 @@ model WebLead {
 }
 
 model PushSubscription {
-  id        String   @id @default(cuid())
-  endpoint  String
+  id        String   @id @default(uuid())
+  userId    String
+  endpoint  String   @unique
   p256dh    String
   auth      String
-  userId    String?
   createdAt DateTime @default(now())
-
-  @@unique([userId, endpoint])
+  updatedAt DateTime @updatedAt
 }
 
 model ClientPushLog {

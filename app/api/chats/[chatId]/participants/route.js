@@ -38,6 +38,7 @@ export async function GET(req, { params }) {
             role: true,
             lastActive: true,
             phone: true,
+            hidePhone: true,
             gardener: { select: { phone: true, photo: true } },
           },
         },
@@ -52,6 +53,7 @@ export async function GET(req, { params }) {
         role: user.role,
         lastActive: user.lastActive,
         phone: user.gardener?.phone || user.phone,
+        hidePhone: user.hidePhone ?? true,
         photo: user.gardener?.photo || null,
         isOnline: Boolean(
           user.lastActive
