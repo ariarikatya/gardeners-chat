@@ -10,6 +10,7 @@ import SettingsDrawer from '@/components/SettingsDrawer';
 
 const MAX_TOTAL_FILE_BYTES = 100 * 1024 * 1024;
 const MAX_FILES_PER_MESSAGE = 10;
+const CHAT_CONTACTS_KEY = 'chat_contacts';
 
 const ROLE_LABELS = {
   ADMIN: 'Диспетчер',
@@ -134,6 +135,37 @@ function formatPhone(phone, hidePhone) {
     return `+${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4, 7)}-${digits.slice(7, 9)}-${digits.slice(9, 11)}`;
   }
   return phone;
+}
+
+function readStoredChatContacts() {
+  try {
+    const raw = localStorage.getItem(CHAT_CONTACTS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((value) => String(value).replace(/\D/g, '')).filter(Boolean);
+  } catch (error) {
+    return [];
+  }
+}
+
+function storeChatContacts(contacts) {
+  try {
+    const phones = [];
+    (contacts || []).forEach((contact) => {
+      const telList = contact?.tel || contact?.['tel'] || [];
+      const values = Array.isArray(telList) ? telList : [telList];
+      values.forEach((value) => {
+        const digits = String(value || '').replace(/\D/g, '');
+        if (digits) phones.push(digits);
+      });
+    });
+    const normalized = Array.from(new Set(phones));
+    localStorage.setItem(CHAT_CONTACTS_KEY, JSON.stringify(normalized));
+    return normalized;
+  } catch (error) {
+    return [];
+  }
 }
 
 async function requestJson(url, options = {}) {
@@ -596,6 +628,8 @@ export default function ChatsPage() {
   const [inviteError, setInviteError] = useState('');
   const [inviteResult, setInviteResult] = useState(null);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [contactsSupported, setContactsSupported] = useState(false);
+  const [contactsReloadToken, setContactsReloadToken] = useState(0);
   const [editingMessageId, setEditingMessageId] = useState('');
   const [editDraft, setEditDraft] = useState('');
   const [savingEdit, setSavingEdit] = useState(false);
@@ -807,11 +841,20 @@ export default function ChatsPage() {
 
   useEffect(() => {
     if (!newChatOpen) return undefined;
+    setContactsSupported(
+      typeof navigator !== 'undefined' && Boolean(navigator.contacts?.select)
+    );
     let cancelled = false;
     setLoadingUsers(true);
     const timer = window.setTimeout(async () => {
       try {
-        const data = await requestJson(`/api/chats/users?q=${encodeURIComponent(userSearch.trim())}`);
+        const params = new URLSearchParams();
+        params.set('q', userSearch.trim());
+        if (user?.role === 'CHAT') {
+          const phones = readStoredChatContacts();
+          if (phones.length > 0) params.set('phones', phones.join(','));
+        }
+        const data = await requestJson(`/api/chats/users?${params.toString()}`);
         if (!cancelled) setUsers(data.users || []);
       } catch (requestError) {
         if (!cancelled) setError(requestError.message || 'Не удалось найти пользователей');
@@ -823,7 +866,7 @@ export default function ChatsPage() {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [newChatOpen, userSearch]);
+  }, [newChatOpen, userSearch, user?.role, contactsReloadToken]);
 
   useEffect(() => {
     if (!participantsOpen || !showAddParticipant) return undefined;
@@ -971,6 +1014,39 @@ useEffect(() => {
     setSelectedUserIds((current) => current.includes(id)
       ? current.filter((value) => value !== id)
       : [...current, id]);
+  };
+
+  const openNewChat = () => {
+    setError('');
+    if (user?.role === 'CHAT' && typeof navigator !== 'undefined' && navigator.contacts?.select) {
+      try {
+        navigator.contacts
+          .select({ multiple: true }, ['tel'])
+          .then((contacts) => {
+            storeChatContacts(contacts || []);
+            setUserSearch('');
+          })
+          .catch(() => {});
+      } catch (error) {
+        // Игнорируем: на некоторых устройствах выбор контактов недоступен.
+      }
+    }
+    setNewChatOpen(true);
+  };
+
+  const pickChatContacts = () => {
+    if (typeof navigator === 'undefined' || !navigator.contacts?.select) return;
+    try {
+      navigator.contacts
+        .select({ multiple: true }, ['tel'])
+        .then((contacts) => {
+          storeChatContacts(contacts || []);
+          setContactsReloadToken((token) => token + 1);
+        })
+        .catch(() => {});
+    } catch (error) {
+      // Игнорируем: выбор контактов недоступен.
+    }
   };
 
   const createChat = async (event) => {
@@ -1758,7 +1834,7 @@ const closeChat = () => {
                 <line x1="22" y1="11" x2="16" y2="11" />
               </svg>
             </button>
-            <button type="button" onClick={() => { setError(''); setNewChatOpen(true); }} className="shrink-0 rounded-lg bg-white px-3 py-2 text-sm font-semibold text-emerald-900 hover:bg-emerald-50">
+            <button type="button" onClick={openNewChat} className="shrink-0 rounded-lg bg-white px-3 py-2 text-sm font-semibold text-emerald-900 hover:bg-emerald-50">
               + Новый чат
             </button>
           </div>
@@ -2396,6 +2472,17 @@ const closeChat = () => {
             </div>
             <div className="space-y-3 overflow-y-auto p-4">
               <input value={userSearch} onChange={(event) => setUserSearch(event.target.value)} placeholder="Найти пользователя…" className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 outline-none focus:border-emerald-500" />
+              {user?.role === 'CHAT' && (
+                contactsSupported ? (
+                  <button type="button" onClick={pickChatContacts} className="w-full rounded-lg border border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-900/20 px-3 py-2 text-sm font-semibold text-emerald-800 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/40">
+                    Выбрать из контактов
+                  </button>
+                ) : (
+                  <p className="rounded-lg bg-slate-50 dark:bg-slate-800 px-3 py-2 text-xs text-slate-500 dark:text-slate-400">
+                    На этом устройстве выбор контактов недоступен: виден диспетчер и поиск по полному номеру телефона.
+                  </p>
+                )
+              )}
               {selectedUserIds.length > 1 && (
                 <input value={groupName} onChange={(event) => setGroupName(event.target.value)} maxLength={100} placeholder="Название группы (необязательно)" className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 outline-none focus:border-emerald-500" />
               )}
@@ -2410,7 +2497,11 @@ const closeChat = () => {
                           <input type="checkbox" checked={selectedUserIds.includes(candidate.id)} onChange={() => toggleSelectedUser(candidate.id)} className="h-4 w-4 accent-emerald-700" />
                           <span className="min-w-0 flex-1">
                             <span className="block truncate text-sm font-semibold text-slate-800 dark:text-slate-100">{candidate.name}</span>
-                            <span className="block text-xs text-slate-500 dark:text-slate-400">{ROLE_LABELS[candidate.role] || candidate.role}</span>
+                            <span className="block text-xs text-slate-500 dark:text-slate-400">
+                              {candidate.role === 'CHAT'
+                                ? formatPhoneForList(candidate.phone, candidate.hidePhone)
+                                : `${ROLE_LABELS[candidate.role] || candidate.role} · ${formatPhoneForList(candidate.phone, candidate.hidePhone)}`}
+                            </span>
                           </span>
                         </label>
                 ))}

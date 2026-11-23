@@ -6,6 +6,8 @@ import apiFetch from '@/lib/apiFetch';
 const CLIENT_VERSION = typeof window !== 'undefined' ? window.CLIENT_VERSION : 'v1.0.0-chat';
 
 export default function SettingsDrawer({ open, onClose, user, onUpdateUser }) {
+  const [toast, setToast] = useState('');
+  const toastTimerRef = useRef(null);
   const [activeSection, setActiveSection] = useState('profile');
   const [profileData, setProfileData] = useState({ name: '', phone: '' });
   const [passwordData, setPasswordData] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
@@ -15,7 +17,6 @@ export default function SettingsDrawer({ open, onClose, user, onUpdateUser }) {
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
   const [pushSubscribed, setPushSubscribed] = useState(false);
   const [pushLoading, setPushLoading] = useState(false);
   const [hidePhone, setHidePhone] = useState(user?.hidePhone ?? true);
@@ -27,7 +28,7 @@ export default function SettingsDrawer({ open, onClose, user, onUpdateUser }) {
       setProfileData({ name: user?.name || '', phone: user?.phone || '' });
       setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
       setError('');
-      setSuccess('');
+      setToast('');
       setHidePhone(user?.hidePhone ?? true);
       const savedTheme = localStorage.getItem('chat_theme');
       setTheme(savedTheme || 'system');
@@ -39,11 +40,15 @@ export default function SettingsDrawer({ open, onClose, user, onUpdateUser }) {
     if (!open) {
       setActiveSection('profile');
       setError('');
-      setSuccess('');
+      setToast('');
       setDeleteConfirm(false);
       setDeletePassword('');
     }
   }, [open]);
+
+  useEffect(() => () => {
+    if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
+  }, []);
 
   const applyTheme = (newTheme) => {
     const root = document.documentElement;
@@ -76,7 +81,10 @@ export default function SettingsDrawer({ open, onClose, user, onUpdateUser }) {
   const handleProfileSave = async () => {
     setSaving(true);
     setError('');
-    setSuccess('');
+    if (toastTimerRef.current) {
+      window.clearTimeout(toastTimerRef.current);
+      toastTimerRef.current = null;
+    }
     try {
       const body = {
         name: profileData.name.trim(),
@@ -105,9 +113,12 @@ export default function SettingsDrawer({ open, onClose, user, onUpdateUser }) {
       if (!response.ok) throw new Error(data.error || 'Не удалось сохранить профиль');
       setProfileData({ name: data.user.name, phone: data.user.phone });
       setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
-      setSuccess('Сохранено');
       if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = 0;
-      setTimeout(() => setSuccess(''), 3000);
+      setToast('Сохранено');
+      toastTimerRef.current = window.setTimeout(() => {
+        setToast('');
+        toastTimerRef.current = null;
+      }, 3000);
       if (onUpdateUser) onUpdateUser(data.user);
     } catch (err) {
       setError(err.message || 'Ошибка при сохранении');
@@ -215,7 +226,12 @@ export default function SettingsDrawer({ open, onClose, user, onUpdateUser }) {
         }),
       });
       setPushSubscribed(true);
-      setSuccess('Уведомления включены');
+      setToast('Уведомления включены');
+      if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
+      toastTimerRef.current = window.setTimeout(() => {
+        setToast('');
+        toastTimerRef.current = null;
+      }, 3000);
     } catch (err) {
       setError(err.message || 'Не удалось включить уведомления');
     } finally {
@@ -239,7 +255,12 @@ export default function SettingsDrawer({ open, onClose, user, onUpdateUser }) {
         });
       }
       setPushSubscribed(false);
-      setSuccess('Уведомления выключены');
+      setToast('Уведомления выключены');
+      if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
+      toastTimerRef.current = window.setTimeout(() => {
+        setToast('');
+        toastTimerRef.current = null;
+      }, 3000);
     } catch (err) {
       setError(err.message || 'Не удалось выключить уведомления');
     } finally {
@@ -293,7 +314,7 @@ export default function SettingsDrawer({ open, onClose, user, onUpdateUser }) {
                 key={section.id}
                 role="tab"
                 aria-selected={activeSection === section.id}
-                onClick={() => { setActiveSection(section.id); setError(''); setSuccess(''); }}
+                onClick={() => { setActiveSection(section.id); setError(''); }}
                 className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap shrink-0 ${
                   activeSection === section.id
                     ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300'
@@ -313,13 +334,7 @@ export default function SettingsDrawer({ open, onClose, user, onUpdateUser }) {
               <span>{error}</span>
               <button type="button" onClick={() => setError('')} aria-label="Закрыть">×</button>
             </div>
-          )}
-          {success && (
-            <div role="status" className="rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20 px-3 py-2 text-sm text-emerald-800 dark:text-emerald-200 flex items-center justify-between gap-3">
-              <span>{success}</span>
-              <button type="button" onClick={() => setSuccess('')} aria-label="Закрыть">×</button>
-            </div>
-          )}
+        )}
 
           {activeSection === 'profile' && (
             <div className="space-y-4">
@@ -532,6 +547,12 @@ export default function SettingsDrawer({ open, onClose, user, onUpdateUser }) {
           )}
         </div>
       </div>
+      {toast && (
+        <div role="status" className="fixed bottom-6 left-1/2 z-[310] -translate-x-1/2 flex items-center gap-2 rounded-full bg-slate-900/95 px-4 py-2 text-sm font-medium text-white shadow-lg dark:bg-slate-800/95">
+          <svg aria-hidden="true" viewBox="0 0 20 20" className="h-4 w-4 text-emerald-400" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m4 10.5 4 4 8-9" /></svg>
+          <span>{toast}</span>
+        </div>
+      )}
     </div>
   );
 }
