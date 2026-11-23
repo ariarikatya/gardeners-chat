@@ -196,7 +196,7 @@ export default function SettingsDrawer({ open, onClose, user }) {
                 role="tab"
                 aria-selected={activeSection === section.id}
                 onClick={() => { setActiveSection(section.id); setError(''); setSuccess(''); }}
-                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap shrink-0 ${
                   activeSection === section.id
                     ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300'
                     : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
@@ -329,11 +329,11 @@ export default function SettingsDrawer({ open, onClose, user }) {
             <div className="space-y-4">
               <h3 className="font-semibold text-slate-800 dark:text-slate-100">Об приложении</h3>
               <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 space-y-2">
-                <div className="flex justify-between text-sm">
+                <div className="flex items-center justify-between gap-3">
                   <span className="text-slate-500 dark:text-slate-400">Версия</span>
                   <span className="font-mono text-slate-800 dark:text-slate-100">{CLIENT_VERSION}</span>
                 </div>
-                <div className="flex justify-between text-sm">
+                <div className="flex items-center justify-between gap-3">
                   <span className="text-slate-500 dark:text-slate-400">Платформа</span>
                   <span className="font-mono text-slate-800 dark:text-slate-100">Next.js + React + Prisma + Tailwind</span>
                 </div>

@@ -559,28 +559,7 @@ export default function ChatsPage() {
   const [messageMenu, setMessageMenu] = useState(null);
   const [notificationsDropdownOpen, setNotificationsDropdownOpen] = useState(false);
   const [deletedMessagesMap, setDeletedMessagesMap] = useState(new Map());
-  const voiceTimerRef = useRef(null);
-  const voiceAnimationFrameRef = useRef(null);
-  const voiceVisualizerRef = useRef(null);
-  const voiceBarCountRef = useRef(32);
-  const audioContextRef = useRef(null);
-  const audioAnalyserRef = useRef(null);
-  const voiceDurationRef = useRef(0);
-  const voiceChunksRef = useRef([]);
-  const voicePreviewUrlRef = useRef('');
-  const voiceDraftUrlRef = useRef('');
-  const voicePreviewAudioRef = useRef(null);
-  const voiceMediaStreamRef = useRef(null);
-  const voiceStartInProgressRef = useRef(false);
-  const voiceStartVersionRef = useRef(0);
-  const discardRecordingRef = useRef(false);
-  const sendVoiceAfterStopRef = useRef(false);
-  const audioRecorderRef = useRef(null);
-  const longPressTimerRef = useRef(null);
-  const longPressTriggeredRef = useRef(false);
-  const [showAddParticipant, setShowAddParticipant] = useState(false);
-  const [participantSearch, setParticipantSearch] = useState('');
-  const [participantUsers, setParticipantUsers] = useState([]);
+  const [chatSearch, setChatSearch] = useState('');
   const [invitePhone, setInvitePhone] = useState('');
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
   const [creatingInvite, setCreatingInvite] = useState(false);
@@ -600,6 +579,19 @@ export default function ChatsPage() {
     () => chats.find((chat) => chat.id === activeChatId) || null,
     [chats, activeChatId]
   );
+
+  const filteredChats = useMemo(() => {
+    if (!chatSearch.trim()) return chats;
+    const query = chatSearch.trim().toLowerCase();
+    const queryDigits = query.replace(/\D/g, '');
+    return chats.filter((chat) => {
+      const title = chatTitle(chat, user?.id).toLowerCase();
+      const groupNameMatch = chat.name?.toLowerCase().includes(query) ?? false;
+      const titleMatch = title.includes(query);
+      const phoneMatch = queryDigits && chat.participants?.some((p) => p.phone?.replace(/\D/g, '').includes(queryDigits));
+      return titleMatch || groupNameMatch || phoneMatch;
+    });
+  }, [chats, chatSearch, user?.id]);
 
   const loadChats = useCallback(async () => {
     const data = await requestJson('/api/chats');
@@ -1657,9 +1649,15 @@ const closeChat = () => {
   const activeChatRecipient = activeChat && !activeChat.isGroup
     ? activeChat.participants[0]
     : null;
+  const profileAttachments = allAttachments;
+  const recipientIsOnline = Boolean(activeChatRecipient && chatPresence[activeChatRecipient.id]?.isOnline);
+  const recipientStatusText = activeChatRecipient
+    ? (recipientIsOnline ? 'В сети' : formatRelativeOnline(activeChatRecipient.lastActive))
+    : (activeChat?.isGroup ? `${activeChat.participants.length} участников` : 'Личный чат');
+  const forwardingDraftMessage = forwardingTargetChosen ? forwardingMessage : null;
   return (
-    <main className="chat-page flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-slate-100 text-slate-800">
-      <header className="shrink-0 bg-emerald-900 px-4 py-3 text-white shadow">
+    <main className="chat-page flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-slate-100 dark:bg-slate-950 text-slate-800 dark:text-slate-100">
+      <header className="shrink-0 bg-emerald-900 dark:bg-emerald-950 px-4 py-3 text-white shadow">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
             <div className="min-w-0">
@@ -1688,7 +1686,7 @@ const closeChat = () => {
 
       {error && (
         <div role="alert" className="mx-auto mt-3 max-w-7xl shrink-0 px-3">
-          <div className="flex items-center justify-between gap-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-900/20 px-3 py-2 text-sm text-rose-800 dark:text-rose-200">
             <span>{error}</span>
             <button type="button" onClick={() => setError('')} aria-label="Закрыть сообщение об ошибке">×</button>
           </div>
@@ -1696,7 +1694,7 @@ const closeChat = () => {
       )}
       {success && (
         <div role="status" className="mx-auto mt-3 max-w-7xl shrink-0 px-3">
-          <div className="flex items-center justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20 px-3 py-2 text-sm text-emerald-800 dark:text-emerald-200">
             <span>{success}</span>
             <button type="button" onClick={() => setSuccess('')} aria-label="Закрыть">×</button>
           </div>
@@ -1713,85 +1711,107 @@ const closeChat = () => {
         >
           <div
             role="menu"
-            className="fixed z-[201] w-48 rounded-xl border border-slate-200 bg-white p-1.5 text-sm shadow-xl"
+            className="fixed z-[201] w-48 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-1.5 text-sm shadow-xl"
             style={{ left: messageMenu.x, top: messageMenu.y }}
             onPointerDown={(event) => event.stopPropagation()}
           >
-            <button type="button" role="menuitem" onClick={() => startMessageReply(messageMenu.message)} className="w-full rounded-lg px-3 py-2 text-left hover:bg-slate-50">Ответить</button>
-            <button type="button" role="menuitem" onClick={() => startMessageForward(messageMenu.message)} className="w-full rounded-lg px-3 py-2 text-left hover:bg-slate-50">Переслать</button>
+            <button type="button" role="menuitem" onClick={() => startMessageReply(messageMenu.message)} className="w-full rounded-lg px-3 py-2 text-left hover:bg-slate-50 dark:hover:bg-slate-800">Ответить</button>
+            <button type="button" role="menuitem" onClick={() => startMessageForward(messageMenu.message)} className="w-full rounded-lg px-3 py-2 text-left hover:bg-slate-50 dark:hover:bg-slate-800">Переслать</button>
           </div>
         </div>
       )}
 
       <div className="mx-auto grid min-h-0 w-full max-w-7xl flex-1 grid-cols-1 gap-3 overflow-hidden p-3 md:grid-cols-[320px_minmax(0,1fr)]">
-        <aside className={`flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm md:flex ${activeChatId ? 'hidden' : 'flex'}`}>
-          <div className="border-b border-slate-200 px-4 py-3">
-            <h2 className="font-semibold">Переписки</h2>
-            <p className="mt-1 text-xs text-slate-500">Личные и групповые чаты</p>
+        <aside className={`flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm md:flex ${activeChatId ? 'hidden' : 'flex'}`}>
+          <div className="border-b border-slate-200 dark:border-slate-700 px-4 py-3">
+            <h2 className="font-semibold text-slate-800 dark:text-slate-100">Переписки</h2>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Личные и групповые чаты</p>
+          </div>
+          <div className="shrink-0 border-b border-slate-200 dark:border-slate-700 p-3">
+            <div className="relative">
+              <span aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500">⌕</span>
+              <input
+                type="search"
+                value={chatSearch}
+                onChange={(event) => setChatSearch(event.target.value)}
+                placeholder="Поиск по имени или номеру"
+                className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 pl-10 pr-3 py-2 text-sm text-slate-700 dark:text-slate-200 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 placeholder:text-slate-400 dark:placeholder:text-slate-500"
+              />
+            </div>
           </div>
           <div className="flex-1 overflow-y-auto">
-            {loading ? <p className="p-5 text-sm text-slate-500">Загрузка чатов…</p> : chats.length === 0 ? (
-              <div className="p-5 text-center text-sm text-slate-500">
-                <p>Пока нет переписок.</p>
-                <button type="button" className="mt-2 font-semibold text-emerald-700" onClick={() => setNewChatOpen(true)}>Начать новый чат</button>
-              </div>
-            ) : chats.map((chat) => {
-              const latest = chat.lastMessage;
-              return (
-                <button
-                  type="button"
-                  key={chat.id}
-                  onClick={() => chooseChat(chat.id)}
-                  className={`flex w-full items-center gap-3 border-b border-slate-100 px-4 py-3 text-left hover:bg-emerald-50 ${chat.id === activeChatId ? 'bg-emerald-50' : ''}`}
-                >
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500">
-                    <svg aria-hidden="true" viewBox="0 0 20 20" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                      {chat.isGroup ? <><circle cx="7" cy="7" r="2.5" /><circle cx="14" cy="8" r="2" /><path d="M2.5 16a4.5 4.5 0 0 1 9 0m.5-3.5a3.5 3.5 0 0 1 5.5 2.8" /></> : <><circle cx="10" cy="6.5" r="3" /><path d="M3.5 17a6.5 6.5 0 0 1 13 0" /></>}
-                    </svg>
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="flex items-center justify-between gap-2">
-                      <span className="truncate text-sm font-semibold">{chatTitle(chat, user?.id)}</span>
-                      <span className="shrink-0 text-[11px] text-slate-400">{formatDate(latest?.createdAt || chat.updatedAt)}</span>
+            {loading ? (
+              <p className="p-5 text-sm text-slate-500 dark:text-slate-400">Загрузка чатов…</p>
+            ) : filteredChats.length === 0 ? (
+              !chatSearch.trim() && chats.length === 0 ? (
+                <div className="p-5 text-center text-sm text-slate-500 dark:text-slate-400">
+                  <p>Пока нет переписок.</p>
+                  <button type="button" className="mt-2 font-semibold text-emerald-700 dark:text-emerald-300" onClick={() => setNewChatOpen(true)}>Начать новый чат</button>
+                </div>
+              ) : (
+                <div className="p-5 text-center text-sm text-slate-500 dark:text-slate-400">
+                  <p>Ничего не найдено</p>
+                </div>
+              )
+            ) : (
+              filteredChats.map((chat) => {
+                const latest = chat.lastMessage;
+                return (
+                  <button
+                    type="button"
+                    key={chat.id}
+                    onClick={() => chooseChat(chat.id)}
+                    className={`flex w-full items-center gap-3 border-b border-slate-100 dark:border-slate-800 px-4 py-3 text-left hover:bg-emerald-50 dark:hover:bg-emerald-900/20 ${chat.id === activeChatId ? 'bg-emerald-50 dark:bg-emerald-900/20' : ''}`}
+                  >
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
+                      <svg aria-hidden="true" viewBox="0 0 20 20" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                        {chat.isGroup ? <><circle cx="7" cy="7" r="2.5" /><circle cx="14" cy="8" r="2" /><path d="M2.5 16a4.5 4.5 0 0 1 9 0m.5-3.5a3.5 3.5 0 0 1 5.5 2.8" /></> : <><circle cx="10" cy="6.5" r="3" /><path d="M3.5 17a6.5 6.5 0 0 1 13 0" /></>}
+                      </svg>
                     </span>
-                    <span className="mt-1 flex items-center justify-between gap-2">
-                      <span className="truncate text-xs text-slate-500">
-                        {chat.isGroup && latest?.sender ? `${latest.sender.name}: ` : ''}
-                        {latest?.isDeleted
-                          ? 'Сообщение удалено'
-                          : latest?.body || (latest?.attachments?.length ? fileKind(latest.attachments[0].mimeType, latest.attachments[0].filename) : 'Нет сообщений')}
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-center justify-between gap-2">
+                        <span className="truncate text-sm font-semibold text-slate-800 dark:text-slate-100">{chatTitle(chat, user?.id)}</span>
+                        <span className="shrink-0 text-[11px] text-slate-400 dark:text-slate-500">{formatDate(latest?.createdAt || chat.updatedAt)}</span>
                       </span>
-                      {chat.unreadCount > 0 && <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-emerald-600" aria-label="Есть непрочитанные сообщения" />}
+                      <span className="mt-1 flex items-center justify-between gap-2">
+                        <span className="truncate text-xs text-slate-500 dark:text-slate-400">
+                          {chat.isGroup && latest?.sender ? `${latest.sender.name}: ` : ''}
+                          {latest?.isDeleted
+                            ? 'Сообщение удалено'
+                            : latest?.body || (latest?.attachments?.length ? fileKind(latest.attachments[0].mimeType, latest.attachments[0].filename) : 'Нет сообщений')}
+                        </span>
+                        {chat.unreadCount > 0 && <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-emerald-600" aria-label="Есть непрочитанные сообщения" />}
+                      </span>
                     </span>
-                  </span>
-                </button>
-              );
-            })}
+                  </button>
+                );
+              })
+            )}
           </div>
         </aside>
 
-        <section className={`flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm md:flex ${activeChatId ? 'flex' : 'hidden'}`}>
+        <section className={`flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm md:flex ${activeChatId ? 'flex' : 'hidden'}`}>
           {!activeChat ? (
-            <div className="hidden h-full flex-col items-center justify-center gap-2 p-6 text-center text-slate-500 md:flex">
-              <span className="text-slate-300">
+            <div className="hidden h-full flex-col items-center justify-center gap-2 p-6 text-center text-slate-500 dark:text-slate-400 md:flex">
+              <span className="text-slate-300 dark:text-slate-600">
                 <svg aria-hidden="true" viewBox="0 0 32 32" className="h-10 w-10" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M5 6.5h22v15H15l-7 5v-5H5z" />
                   <path d="M10 12h12m-12 4h8" />
                 </svg>
               </span>
-              <p className="font-semibold">Выберите чат или начните новую переписку</p>
+              <p className="font-semibold text-slate-800 dark:text-slate-100">Выберите чат или начните новую переписку</p>
             </div>
           ) : (
             <>
-              <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-3 py-3 sm:px-5">
+              <div className="flex items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-700 px-3 py-3 sm:px-5">
                 <div className="flex min-w-0 items-center gap-3">
                   <button
                     type="button"
                     onClick={closeChat}
-                    className="flex min-w-0 items-center gap-3 text-left hover:bg-slate-50 rounded-lg p-1 -m-1"
+                    className="flex min-w-0 items-center gap-3 text-left hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg p-1 -m-1"
                     aria-label="Вернуться к списку чатов"
                   >
-                    <span className="relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-emerald-100 text-sm font-bold text-emerald-800">
+                    <span className="relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-200 dark:border-slate-700 bg-emerald-100 dark:bg-emerald-900 text-sm font-bold text-emerald-800 dark:text-emerald-300">
                       {activeChatRecipient?.photo ? (
                         <img src={activeChatRecipient.photo} alt={chatTitle(activeChat, user?.id)} className="h-full w-full object-cover" />
                       ) : (
@@ -1799,41 +1819,41 @@ const closeChat = () => {
                       )}
                     </span>
                     <span className="min-w-0">
-                      <span className="block truncate text-sm font-semibold text-slate-800">{chatTitle(activeChat, user?.id)}</span>
-                      <span className={`block truncate text-[11px] ${!activeChat.isGroup && recipientIsOnline ? 'font-medium text-emerald-700' : 'text-slate-500'}`}>{activeChat.isGroup ? `Группа · ${formatParticipantCount(activeChat.participants.length + 1)}` : `${ROLE_LABELS[activeChatRecipient?.role] || 'Пользователь'} · ${recipientStatusText}`}</span>
+                      <span className="block truncate text-sm font-semibold text-slate-800 dark:text-slate-100">{chatTitle(activeChat, user?.id)}</span>
+                      <span className={`block truncate text-[11px] ${!activeChat.isGroup && recipientIsOnline ? 'font-medium text-emerald-700 dark:text-emerald-300' : 'text-slate-500 dark:text-slate-400'}`}>{activeChat.isGroup ? `Группа · ${formatParticipantCount(activeChat.participants.length + 1)}` : `${ROLE_LABELS[activeChatRecipient?.role] || 'Пользователь'} · ${recipientStatusText}`}</span>
                     </span>
                   </button>
                 </div>
                 <div className="flex items-center gap-2">
                   <div ref={chatMenuRef} className="relative">
-                    <button type="button" onClick={toggleChatSettings} className="rounded-full p-2 text-lg leading-none text-slate-500 hover:bg-slate-100" aria-label="Настройки чата" aria-expanded={settingsOpen}>⋮</button>
+                    <button type="button" onClick={toggleChatSettings} className="rounded-full p-2 text-lg leading-none text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Настройки чата" aria-expanded={settingsOpen}>⋮</button>
                     {settingsOpen && (
-                      <div className="absolute right-0 top-full z-[120] mt-1 w-[min(90vw,18rem)] rounded-xl border border-slate-200 bg-white p-2 text-sm text-slate-700 shadow-xl">
-                        <div className="mb-1 px-2 py-1 text-xs font-semibold text-slate-500">Настройки чата</div>
+                      <div className="absolute right-0 top-full z-[120] mt-1 w-[min(90vw,18rem)] rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-2 text-sm text-slate-700 dark:text-slate-300 shadow-xl">
+                        <div className="mb-1 px-2 py-1 text-xs font-semibold text-slate-500 dark:text-slate-400">Настройки чата</div>
                         <div className="space-y-1">
-                          <button type="button" onClick={() => { setSearchOpen(true); setMessageSearch(''); setSettingsOpen(false); }} className="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left hover:bg-slate-50">
-                            <span>Найти</span><span aria-hidden="true" className="text-slate-400">⌕</span>
+                          <button type="button" onClick={() => { setSearchOpen(true); setMessageSearch(''); setSettingsOpen(false); }} className="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left hover:bg-slate-50 dark:hover:bg-slate-800">
+                            <span>Найти</span><span aria-hidden="true" className="text-slate-400 dark:text-slate-500">⌕</span>
                           </button>
-                          <button type="button" onClick={() => { setSettingsOpen(false); setInviteModalOpen(true); setInvitePhone(''); }} className="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left hover:bg-slate-50">
-                            <span>Пригласить по номеру</span><span aria-hidden="true" className="text-slate-400">›</span>
+                          <button type="button" onClick={() => { setSettingsOpen(false); setInviteModalOpen(true); setInvitePhone(''); }} className="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left hover:bg-slate-50 dark:hover:bg-slate-800">
+                            <span>Пригласить по номеру</span><span aria-hidden="true" className="text-slate-400 dark:text-slate-500">›</span>
                           </button>
-                          <button type="button" onClick={() => openParticipants(activeChat.id)} className="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left hover:bg-slate-50">
-                            <span>Участники</span><span aria-hidden="true" className="text-slate-400">›</span>
+                          <button type="button" onClick={() => openParticipants(activeChat.id)} className="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left hover:bg-slate-50 dark:hover:bg-slate-800">
+                            <span>Участники</span><span aria-hidden="true" className="text-slate-400 dark:text-slate-500">›</span>
                           </button>
                         </div>
-                        <div className="mt-2 border-t border-slate-100 pt-2">
+                        <div className="mt-2 border-t border-slate-100 dark:border-slate-800 pt-2">
                           <button
                             type="button"
                             onClick={() => setNotificationsDropdownOpen((open) => !open)}
                             aria-expanded={notificationsDropdownOpen}
-                            className="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left font-semibold hover:bg-slate-50"
+                            className="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left font-semibold hover:bg-slate-50 dark:hover:bg-slate-800"
                           >
                             <span>Уведомления</span>
-                            <span aria-hidden="true" className="text-slate-400">{notificationsDropdownOpen ? '⌄' : '›'}</span>
+                            <span aria-hidden="true" className="text-slate-400 dark:text-slate-500">{notificationsDropdownOpen ? '⌄' : '›'}</span>
                           </button>
                           {notificationsDropdownOpen && (
                             <div className="px-2.5 pb-1">
-                              <p className="pb-1 text-[11px] text-slate-400">Отключить уведомления</p>
+                              <p className="pb-1 text-[11px] text-slate-400 dark:text-slate-500">Отключить уведомления</p>
                               <div className="space-y-1">
                                 {[
                                   ['1h', 'На 1 час'],
@@ -1841,12 +1861,12 @@ const closeChat = () => {
                                   ['24h', 'На 24 часа'],
                                   ['forever', 'Навсегда'],
                                 ].map(([duration, label]) => (
-                                  <button key={duration} type="button" onClick={() => applyChatSetting('mute', duration)} className="w-full rounded-lg px-2 py-1.5 text-left text-xs hover:bg-slate-50">
+                                  <button key={duration} type="button" onClick={() => applyChatSetting('mute', duration)} className="w-full rounded-lg px-2 py-1.5 text-left text-xs hover:bg-slate-50 dark:hover:bg-slate-800">
                                     {label}
                                   </button>
                                 ))}
                                 {chatSettings?.isMuted && (
-                                  <button type="button" onClick={() => applyChatSetting('unmute')} className="w-full rounded-lg px-2 py-1.5 text-left text-xs font-medium text-emerald-700 hover:bg-emerald-50">
+                                  <button type="button" onClick={() => applyChatSetting('unmute')} className="w-full rounded-lg px-2 py-1.5 text-left text-xs font-medium text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/20">
                                     Включить уведомления
                                   </button>
                                 )}
@@ -1859,27 +1879,40 @@ const closeChat = () => {
                             const nextAction = chatSettings?.blockedByMe ? 'unblock' : 'block';
                             const confirmText = nextAction === 'block' ? 'Заблокировать этого пользователя?' : 'Разблокировать пользователя?';
                             if (window.confirm(confirmText)) applyChatSetting(nextAction);
-                          }} className="mt-2 w-full rounded-lg px-2.5 py-2 text-left text-rose-700 hover:bg-rose-50">
+                          }} className="mt-2 w-full rounded-lg px-2.5 py-2 text-left text-rose-700 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-900/20">
                             {chatSettings?.blockedByMe ? 'Разблокировать' : 'Заблокировать'}
                           </button>
                         )}
                         <button type="button" onClick={() => {
                           if (window.confirm('Очистить историю сообщений для вас?')) applyChatSetting('clearHistory');
-                        }} className="mt-1 w-full rounded-lg px-2.5 py-2 text-left hover:bg-slate-50">Очистить историю</button>
+                        }} className="mt-1 w-full rounded-lg px-2.5 py-2 text-left hover:bg-slate-50 dark:hover:bg-slate-800">Очистить историю</button>
                         <button type="button" onClick={() => {
                           if (window.confirm('Удалить чат только для вас?')) applyChatSetting('deleteChat');
-                        }} className="mt-1 w-full rounded-lg px-2.5 py-2 text-left text-rose-700 hover:bg-rose-50">Удалить чат</button>
+                        }} className="mt-1 w-full rounded-lg px-2.5 py-2 text-left text-rose-700 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-900/20">Удалить чат</button>
                       </div>
                     )}
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => { setSettingsOpen(false); setInviteModalOpen(true); setInvitePhone(''); }}
+                    className="rounded-full p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                    aria-label="Пригласить по номеру"
+                  >
+                    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                      <circle cx="9" cy="7" r="4" />
+                      <line x1="19" y1="8" x2="19" y2="14" />
+                      <line x1="22" y1="11" x2="16" y2="11" />
+                    </svg>
+                  </button>
                 </div>
               </div>
 
               {searchOpen && (
-                <div className="sticky top-0 z-10 h-[68px] shrink-0 border-b border-slate-100 bg-white p-3">
+                <div className="sticky top-0 z-10 h-[68px] shrink-0 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3">
                   <div className="flex h-full items-center gap-2">
-                    <div className="flex h-full min-w-0 flex-1 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3">
-                      <span aria-hidden="true" className="text-slate-400">⌕</span>
+                    <div className="flex h-full min-w-0 flex-1 items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3">
+                      <span aria-hidden="true" className="text-slate-400 dark:text-slate-500">⌕</span>
                       <input
                         id="chat-search"
                         type="search"
@@ -1888,19 +1921,19 @@ const closeChat = () => {
                         onFocus={() => { document.body.style.overflow = 'hidden'; }}
                         onBlur={() => { document.body.style.overflow = ''; }}
                         placeholder="Поиск по сообщениям…"
-                        className="h-full w-full bg-transparent text-base text-slate-700 outline-none placeholder:text-slate-400"
+                        className="h-full w-full bg-transparent text-base text-slate-700 dark:text-slate-200 outline-none placeholder:text-slate-400 dark:placeholder:text-slate-500"
                       />
                     </div>
-                    <button type="button" onClick={() => { setSearchOpen(false); setMessageSearch(''); }} className="shrink-0 text-sm font-semibold text-rose-600">Отмена</button>
+                    <button type="button" onClick={() => { setSearchOpen(false); setMessageSearch(''); }} className="shrink-0 text-sm font-semibold text-rose-600 dark:text-rose-400">Отмена</button>
                   </div>
                 </div>
               )}
 
-              <div ref={messagesContainerRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-slate-50 p-3 sm:p-5">
+              <div ref={messagesContainerRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-slate-50 dark:bg-slate-900 p-3 sm:p-5">
                 <div className="space-y-3">
-                {loadingMessages && messages.length === 0 ? <p className="text-center text-sm text-slate-500">Загрузка сообщений…</p> : null}
+                {loadingMessages && messages.length === 0 ? <p className="text-center text-sm text-slate-500 dark:text-slate-400">Загрузка сообщений…</p> : null}
                 {!loadingMessages && messages.length === 0 ? (
-                  <p className="py-12 text-center text-sm text-slate-500">{messageSearch ? 'Ничего не найдено' : 'Сообщений пока нет. Напишите первым!'}</p>
+                  <p className="py-12 text-center text-sm text-slate-500 dark:text-slate-400">{messageSearch ? 'Ничего не найдено' : 'Сообщений пока нет. Напишите первым!'}</p>
                 ) : null}
 {messages.map((message, index) => {
                     const own = message.senderId === user?.id;
@@ -1958,13 +1991,13 @@ const closeChat = () => {
                         onTouchMove={cancelMessageLongPress}
                       >
                         {!own && activeChat.isGroup && (
-                          <span className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full bg-emerald-100 text-[10px] font-semibold text-emerald-800">
+                          <span className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full bg-emerald-100 dark:bg-emerald-900 text-[10px] font-semibold text-emerald-800 dark:text-emerald-300">
                             {message.sender.photo
                               ? <img src={message.sender.photo} alt="" className="h-full w-full object-cover" />
                               : (message.sender.name || '?').trim().charAt(0).toUpperCase()}
                           </span>
                         )}
-                        <div className={`min-w-0 ${onlyMedia ? 'relative max-w-[min(50vw,24rem)] overflow-hidden' : `${shortMediaMessage ? 'max-w-[min(50vw,24rem)]' : 'max-w-[88%] sm:max-w-[75%]'} rounded-2xl px-3 py-2 shadow-sm ${hasAttachments ? 'overflow-hidden' : ''} ${own ? 'rounded-br-sm bg-emerald-100 text-emerald-950' : 'rounded-bl-sm border border-slate-200 bg-white text-slate-800'}`}`}>
+                        <div className={`min-w-0 ${onlyMedia ? 'relative max-w-[min(50vw,24rem)] overflow-hidden' : `${shortMediaMessage ? 'max-w-[min(50vw,24rem)]' : 'max-w-[88%] sm:max-w-[75%]'} rounded-2xl px-3 py-2 shadow-sm ${hasAttachments ? 'overflow-hidden' : ''} ${own ? 'rounded-br-sm bg-emerald-100 dark:bg-emerald-900 text-emerald-950 dark:text-emerald-100' : 'rounded-bl-sm border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100'}`}`}>
                           {!own && activeChat.isGroup && !onlyMedia && (
                             <div className="mb-2 flex items-center gap-1.5 text-[10px] leading-4 text-slate-500">
                               <span className="font-semibold text-slate-600">{message.sender.name}</span>
@@ -1972,7 +2005,7 @@ const closeChat = () => {
                             </div>
                           )}
                           {message.replyToMessage && !message.isDeleted && (
-                            <div className="mb-2 flex max-w-full items-center gap-2 border-l-2 border-emerald-600 bg-black/[0.04] px-2 py-1 text-xs">
+                            <div className="mb-2 flex max-w-full items-center gap-2 border-l-2 border-emerald-600 bg-black/[0.04] dark:bg-white/[0.04] px-2 py-1 text-xs">
                               {message.replyToMessage.attachments?.some((attachment) => isImageAttachment(attachment)) && (
                                 <span className="h-9 w-9 shrink-0 overflow-hidden rounded">
                                   <AttachmentPreview
@@ -1983,8 +2016,8 @@ const closeChat = () => {
                                 </span>
                               )}
                               <span className="min-w-0">
-                                <span className="block truncate font-semibold text-emerald-800">{message.replyToMessage.sender.name}</span>
-                                <span className="block truncate text-slate-600">
+                                <span className="block truncate font-semibold text-emerald-800 dark:text-emerald-300">{message.replyToMessage.sender.name}</span>
+                                <span className="block truncate text-slate-600 dark:text-slate-400">
                                   {message.replyToMessage.body
                                     || (message.replyToMessage.attachments?.length
                                       ? fileKind(message.replyToMessage.attachments[0].mimeType, message.replyToMessage.attachments[0].filename)
@@ -1994,9 +2027,9 @@ const closeChat = () => {
                             </div>
                           )}
                           {message.forwardedFromUser && !message.isDeleted && (
-                            <div className="mb-2 border-l-2 border-sky-500 bg-black/[0.04] px-2 py-1 text-xs">
-                              <span className="block font-semibold text-sky-700">Переслано от {message.forwardedFromUser.name}</span>
-                              {message.forwardedBody && <span className="mt-0.5 block whitespace-pre-wrap break-words text-slate-700">{message.forwardedBody}</span>}
+                            <div className="mb-2 border-l-2 border-sky-500 bg-black/[0.04] dark:bg-white/[0.04] px-2 py-1 text-xs">
+                              <span className="block font-semibold text-sky-700 dark:text-sky-300">Переслано от {message.forwardedFromUser.name}</span>
+                              {message.forwardedBody && <span className="mt-0.5 block whitespace-pre-wrap break-words text-slate-700 dark:text-slate-300">{message.forwardedBody}</span>}
                             </div>
                           )}
                           {editingMessageId === message.id ? (
@@ -2007,16 +2040,16 @@ const closeChat = () => {
                                 onChange={(event) => setEditDraft(event.target.value)}
                                 maxLength={4000}
                                 rows={3}
-                                className="box-border min-h-11 w-full resize-none overflow-y-auto rounded-lg border border-emerald-300 bg-white px-3 py-2 text-base leading-[1.5] text-slate-900 outline-none focus:border-emerald-600"
+                                className="box-border min-h-11 w-full resize-none overflow-y-auto rounded-lg border border-emerald-300 dark:border-emerald-700 bg-white dark:bg-slate-800 px-3 py-2 text-base leading-[1.5] text-slate-900 dark:text-slate-100 outline-none focus:border-emerald-600"
                                 aria-label="Редактировать сообщение"
                               />
                               <div className="flex justify-end gap-2">
-                                <button type="button" onClick={() => { setEditingMessageId(''); setEditDraft(''); }} className="rounded px-2 py-1 text-xs text-slate-600 hover:bg-white">Отмена</button>
+                                <button type="button" onClick={() => { setEditingMessageId(''); setEditDraft(''); }} className="rounded px-2 py-1 text-xs text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800">Отмена</button>
                                 <button type="submit" disabled={savingEdit} className="rounded bg-emerald-700 px-2 py-1 text-xs font-semibold text-white disabled:opacity-50">{savingEdit ? 'Сохранение…' : 'Сохранить'}</button>
                               </div>
                             </form>
                           ) : message.isDeleted ? (
-                            <p className="text-sm italic text-slate-500">Сообщение удалено</p>
+                            <p className="text-sm italic text-slate-500 dark:text-slate-400">Сообщение удалено</p>
                           ) : (
                             <>
                               {message.attachments?.length > 0 && (
@@ -2041,9 +2074,9 @@ const closeChat = () => {
                               {message.body && (
                                 <p className={`whitespace-pre-wrap break-words text-sm leading-relaxed ${shortText ? 'inline' : ''}`}>
                                   {message.body}
-                                  {isEditedMessage(message) ? <span className="ml-1 text-xs text-slate-500">(изменено)</span> : null}
+                                  {isEditedMessage(message) ? <span className="ml-1 text-xs text-slate-500 dark:text-slate-400">(изменено)</span> : null}
                                   {shortText && (
-                                    <span className="ml-2 inline-flex items-center gap-1 align-baseline text-[9px] text-slate-500">
+                                    <span className="ml-2 inline-flex items-center gap-1 align-baseline text-[9px] text-slate-500 dark:text-slate-400">
                                       {time}
                                       {own && <MessageReadReceipt readByAll={message.readByAll} className={receiptColor} />}
                                     </span>
@@ -2053,7 +2086,7 @@ const closeChat = () => {
                             </>
                           )}
                           {((!shortText && !mediaMetadataOverlay) || showMessageActions) && (
-                            <div className="mt-1 flex items-center justify-end gap-1 text-[9px] text-slate-500">
+                            <div className="mt-1 flex items-center justify-end gap-1 text-[9px] text-slate-500 dark:text-slate-400">
                               {!shortText && !mediaMetadataOverlay && time}
                               {own && message.canEdit && editingMessageId !== message.id && (
                                 <button
@@ -2061,7 +2094,7 @@ const closeChat = () => {
                                   onClick={() => { setEditingMessageId(message.id); setEditDraft(message.body || ''); }}
                                   aria-label="Редактировать сообщение"
                                   title="Редактировать"
-                                  className="ml-1 rounded p-1 text-slate-500 hover:bg-white hover:text-emerald-800"
+                                  className="ml-1 rounded p-1 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-emerald-800 dark:hover:text-emerald-300"
                                 >
                                   <svg viewBox="0 0 20 20" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                                     <path d="m13.5 3.5 3 3M4 16l3.8-.8L17 6a2.1 2.1 0 0 0-3-3L4.8 12.2 4 16Z" />
@@ -2074,7 +2107,7 @@ const closeChat = () => {
                                   onClick={() => deleteMessage(message)}
                                   aria-label="Удалить сообщение"
                                   title="Удалить"
-                                  className="rounded p-1 text-slate-500 hover:bg-white hover:text-rose-700"
+                                  className="rounded p-1 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-rose-700 dark:hover:text-rose-300"
                                 >
                                   <svg viewBox="0 0 20 20" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                                     <path d="M3.5 5.5h13M8 5.5V3.8h4v1.7m-6.5 0 .7 11h7.6l.7-11M8.2 8.5v5.5m3.6-5.5v5.5" />
@@ -2095,9 +2128,9 @@ const closeChat = () => {
                 <div ref={bottomRef} />
               </div>
 
-              <form onSubmit={sendMessage} className="sticky bottom-0 z-10 shrink-0 border-t border-slate-200 bg-white p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:p-4">
+              <form onSubmit={sendMessage} className="sticky bottom-0 z-10 shrink-0 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:p-4">
                 {replyingToMessage && !recordingAudio && !voicePaused && !voiceDraft && (
-                  <div className="mb-2 flex items-center gap-2 border-l-2 border-emerald-600 bg-emerald-50 px-3 py-2">
+                  <div className="mb-2 flex items-center gap-2 border-l-2 border-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 px-3 py-2">
                     {replyingToMessage.attachments?.some((attachment) => isImageAttachment(attachment)) && (
                       <img
                         src={replyingToMessage.attachments.find((attachment) => isImageAttachment(attachment)).url}
@@ -2106,35 +2139,35 @@ const closeChat = () => {
                       />
                     )}
                     <span className="min-w-0 flex-1">
-                      <span className="block text-xs font-semibold text-emerald-800">Ответ {replyingToMessage.sender?.name || 'пользователю'}</span>
-                      <span className="block truncate text-xs text-slate-600">
+                      <span className="block text-xs font-semibold text-emerald-800 dark:text-emerald-300">Ответ {replyingToMessage.sender?.name || 'пользователю'}</span>
+                      <span className="block truncate text-xs text-slate-600 dark:text-slate-400">
                         {replyingToMessage.body
                           || (replyingToMessage.attachments?.length
                             ? fileKind(replyingToMessage.attachments[0].mimeType, replyingToMessage.attachments[0].filename)
                             : 'Сообщение')}
                       </span>
                     </span>
-                    <button type="button" onClick={() => setReplyingToMessage(null)} aria-label="Отменить ответ" className="shrink-0 rounded px-2 py-1 text-slate-500 hover:bg-white">×</button>
+                    <button type="button" onClick={() => setReplyingToMessage(null)} aria-label="Отменить ответ" className="shrink-0 rounded px-2 py-1 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800">×</button>
                   </div>
                 )}
                 {forwardingDraftMessage && !recordingAudio && !voicePaused && !voiceDraft && (
-                  <div className="mb-2 flex items-center gap-2 border-l-2 border-sky-500 bg-sky-50 px-3 py-2">
+                  <div className="mb-2 flex items-center gap-2 border-l-2 border-sky-500 bg-sky-50 dark:bg-sky-900/20 px-3 py-2">
                     <span className="min-w-0 flex-1">
-                      <span className="block text-xs font-semibold text-sky-700">Переслано от {forwardingDraftMessage.sender?.name || 'пользователя'}</span>
-                      <span className="block truncate text-xs text-slate-600">
+                      <span className="block text-xs font-semibold text-sky-700 dark:text-sky-300">Переслано от {forwardingDraftMessage.sender?.name || 'пользователя'}</span>
+                      <span className="block truncate text-xs text-slate-600 dark:text-slate-400">
                         {forwardingDraftMessage.body
                           || (forwardingDraftMessage.attachments?.length
                             ? fileKind(forwardingDraftMessage.attachments[0].mimeType, forwardingDraftMessage.attachments[0].filename)
                             : 'Сообщение')}
                       </span>
                     </span>
-                    <button type="button" onClick={cancelForwarding} aria-label="Отменить пересылку" className="shrink-0 rounded px-2 py-1 text-slate-500 hover:bg-white">×</button>
+                    <button type="button" onClick={cancelForwarding} aria-label="Отменить пересылку" className="shrink-0 rounded px-2 py-1 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800">×</button>
                   </div>
                 )}
                 {!recordingAudio && !voicePaused && !voiceDraft && selectedFiles.length > 0 && (
                   <div className="mb-2 flex flex-wrap gap-2">
                     {selectedFiles.map((file, index) => (
-                      <span key={`${file.name}-${file.lastModified}-${index}`} className="inline-flex max-w-full items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-700">
+                      <span key={`${file.name}-${file.lastModified}-${index}`} className="inline-flex max-w-full items-center gap-2 rounded-full bg-slate-100 dark:bg-slate-800 px-3 py-1 text-xs text-slate-700 dark:text-slate-200">
                         <span className="max-w-48 truncate">{file.name}</span>
                         <button type="button" onClick={() => setSelectedFiles((current) => current.filter((_, fileIndex) => fileIndex !== index))} aria-label={`Убрать ${file.name}`}>×</button>
                       </span>
@@ -2142,26 +2175,26 @@ const closeChat = () => {
                   </div>
                 )}
                 {voiceDraft && (
-                  <div className="mb-2 flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-2">
+                  <div className="mb-2 flex items-center gap-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-2">
                     <audio controls src={voiceDraft.url} className="h-10 w-full" />
-                    <button type="button" onClick={deleteVoiceRecording} aria-label="Удалить запись" title="Удалить запись" className="shrink-0 p-2 text-rose-600 hover:text-rose-700">
+                    <button type="button" onClick={deleteVoiceRecording} aria-label="Удалить запись" title="Удалить запись" className="shrink-0 p-2 text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300">
                       <svg aria-hidden="true" viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M3.5 5.5h13M8 5.5V3.8h4v1.7m-6.5 0 .7 11h7.6l.7-11M8.2 8.5v5.5m3.6-5.5v5.5" />
                       </svg>
                     </button>
-                    <button type="button" onClick={() => sendVoiceMessage()} disabled={sending} aria-label="Отправить голосовое сообщение" title="Отправить" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-800 hover:bg-emerald-200 disabled:opacity-50">
+                    <button type="button" onClick={() => sendVoiceMessage()} disabled={sending} aria-label="Отправить голосовое сообщение" title="Отправить" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-800 disabled:opacity-50">
                       {sending ? <span className="text-sm">…</span> : <svg aria-hidden="true" viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 10h13m-5-5 5 5-5 5" /></svg>}
                     </button>
                   </div>
                 )}
                 {(recordingAudio || voicePaused) && (
-                  <div className="mb-2 flex items-center gap-3 rounded-xl bg-slate-50 px-2 py-2 text-sm text-slate-600">
+                  <div className="mb-2 flex items-center gap-3 rounded-xl bg-slate-50 dark:bg-slate-800 px-2 py-2 text-sm text-slate-600 dark:text-slate-300">
                     <span className="shrink-0 text-xs tabular-nums">{voicePaused ? 'Пауза' : `${Math.floor(voiceDuration / 60)}:${String(voiceDuration % 60).padStart(2, '0')}`}</span>
                     <div ref={voiceVisualizerRef} className="flex h-9 min-w-0 flex-1 items-center gap-0.5 overflow-hidden" role="img" aria-label="Визуализация громкости записи">
                       {voiceLevels.map((level, index) => (
                         <span
                           key={index}
-                          className={`min-w-0 flex-1 rounded-full ${voicePaused ? 'bg-slate-400' : 'bg-rose-500'}`}
+                          className={`min-w-0 flex-1 rounded-full ${voicePaused ? 'bg-slate-400 dark:bg-slate-500' : 'bg-rose-500'}`}
                           style={{ height: `${Math.max(4, Math.round(level * 32))}px` }}
                         />
                       ))}
@@ -2171,7 +2204,7 @@ const closeChat = () => {
                       onClick={voicePaused ? resumeVoiceRecording : pauseVoiceRecording}
                       aria-label={voicePaused ? 'Продолжить запись' : 'Поставить запись на паузу'}
                       title={voicePaused ? 'Продолжить запись' : 'Пауза'}
-                      className="p-2 text-slate-500 hover:text-slate-800"
+                      className="p-2 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-100"
                     >
                       {voicePaused
                         ? <svg aria-hidden="true" viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><rect x="7" y="2.5" width="6" height="10" rx="3" /><path d="M4.5 9.5a5.5 5.5 0 0 0 11 0M10 15v2.5m-3 0h6" /></svg>
@@ -2191,7 +2224,7 @@ const closeChat = () => {
                           onClick={toggleVoicePreview}
                           aria-label={voicePreviewPlaying ? 'Приостановить прослушивание' : 'Прослушать запись'}
                           title={voicePreviewPlaying ? 'Приостановить прослушивание' : 'Прослушать'}
-                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-200 text-slate-700 hover:bg-slate-300"
+                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-slate-600"
                         >
                           {voicePreviewPlaying
                             ? <svg aria-hidden="true" viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor"><path d="M5.5 4.5h3v11h-3zm6 0h3v11h-3z" /></svg>
@@ -2200,11 +2233,11 @@ const closeChat = () => {
                       </>
                     )}
                     {voicePaused && (
-                      <button type="button" onClick={sendPausedVoiceRecording} disabled={sending} aria-label="Отправить голосовое сообщение" title="Отправить" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-800 hover:bg-emerald-200 disabled:opacity-50">
+                      <button type="button" onClick={sendPausedVoiceRecording} disabled={sending} aria-label="Отправить голосовое сообщение" title="Отправить" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-800 disabled:opacity-50">
                         <svg aria-hidden="true" viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 10h13m-5-5 5 5-5 5" /></svg>
                       </button>
                     )}
-                    <button type="button" onClick={deleteVoiceRecording} aria-label="Удалить запись" title="Удалить запись" className="p-2 text-rose-600 hover:text-rose-700">
+                    <button type="button" onClick={deleteVoiceRecording} aria-label="Удалить запись" title="Удалить запись" className="p-2 text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300">
                       <svg aria-hidden="true" viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M3.5 5.5h13M8 5.5V3.8h4v1.7m-6.5 0 .7 11h7.6l.7-11M8.2 8.5v5.5m3.6-5.5v5.5" />
                       </svg>
@@ -2219,7 +2252,7 @@ const closeChat = () => {
                       onClick={() => fileInputRef.current?.click()}
                       title="Добавить фото или файл"
                       aria-label="Добавить фото или файл"
-                      className="p-2 text-slate-500 hover:text-slate-800"
+                      className="p-2 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-100"
                     >
                       <svg aria-hidden="true" viewBox="0 0 20 20" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
                         <path d="m7.5 10.8 5.2-5.2a2.1 2.1 0 0 1 3 3l-7 7a4 4 0 0 1-5.7-5.7l7-7" />
@@ -2244,21 +2277,21 @@ const closeChat = () => {
                     rows={1}
                     maxLength={4000}
                     placeholder={replyingToMessage ? 'Ответить на сообщение…' : forwardingDraftMessage ? 'Комментарий к пересылке…' : 'Сообщение'}
-                    className="chat-input-textarea min-w-0 flex-1 rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-base text-slate-700 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                    className="chat-input-textarea min-w-0 flex-1 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-base text-slate-700 dark:text-slate-200 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 dark:focus:ring-emerald-900"
                   />
                   {!draft.trim() && selectedFiles.length === 0 && !forwardingDraftMessage && !replyingToMessage ? (
                     <button
                       type="button"
                       aria-label="Записать голосовое сообщение"
                       onClick={startVoiceRecording}
-                      className="shrink-0 p-2 text-slate-500 hover:text-slate-800"
+                      className="shrink-0 p-2 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-100"
                     >
                       <svg aria-hidden="true" viewBox="0 0 20 20" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
                         <rect x="7" y="2.5" width="6" height="10" rx="3" /><path d="M4.5 9.5a5.5 5.5 0 0 0 11 0M10 15v2.5m-3 0h6" />
                       </svg>
                     </button>
                   ) : (draft.trim() || selectedFiles.length > 0 || forwardingDraftMessage) ? (
-                    <button disabled={sending || (!draft.trim() && selectedFiles.length === 0 && !forwardingDraftMessage)} type="submit" aria-label="Отправить сообщение" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-800 hover:bg-emerald-200 disabled:cursor-not-allowed disabled:opacity-50">
+                    <button disabled={sending || (!draft.trim() && selectedFiles.length === 0 && !forwardingDraftMessage)} type="submit" aria-label="Отправить сообщение" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-50">
                       {sending ? '…' : <svg aria-hidden="true" viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M10 16V4m-5 5 5-5 5 5" /></svg>}
                     </button>
                   ) : null}
@@ -2270,13 +2303,13 @@ const closeChat = () => {
         </section>
       </div>
 
-      {newChatOpen && (
+{newChatOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-3" role="dialog" aria-modal="true" aria-labelledby="new-chat-title">
-          <form onSubmit={createChat} className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
-            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+          <form onSubmit={createChat} className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white dark:bg-slate-900 shadow-xl">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 px-4 py-3">
               <div>
-                <h2 id="new-chat-title" className="font-bold">Новый чат</h2>
-                <p className="text-xs text-slate-500">Один человек — личная переписка, несколько — группа</p>
+                <h2 id="new-chat-title" className="font-bold text-slate-800 dark:text-slate-100">Новый чат</h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Один человек — личная переписка, несколько — группа</p>
               </div>
               <button type="button" onClick={() => {
                 setNewChatOpen(false);
@@ -2284,32 +2317,32 @@ const closeChat = () => {
                   setForwardingMessage(null);
                   setForwardingTargetChosen(false);
                 }
-              }} className="rounded-lg px-3 py-1 text-xl text-slate-500 hover:bg-slate-100" aria-label="Закрыть">×</button>
+              }} className="rounded-lg px-3 py-1 text-xl text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Закрыть">×</button>
             </div>
             <div className="space-y-3 overflow-y-auto p-4">
-              <input value={userSearch} onChange={(event) => setUserSearch(event.target.value)} placeholder="Найти пользователя…" className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500" />
+              <input value={userSearch} onChange={(event) => setUserSearch(event.target.value)} placeholder="Найти пользователя…" className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 outline-none focus:border-emerald-500" />
               {selectedUserIds.length > 1 && (
-                <input value={groupName} onChange={(event) => setGroupName(event.target.value)} maxLength={100} placeholder="Название группы (необязательно)" className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500" />
+                <input value={groupName} onChange={(event) => setGroupName(event.target.value)} maxLength={100} placeholder="Название группы (необязательно)" className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 outline-none focus:border-emerald-500" />
               )}
 
-              <div className="max-h-72 divide-y divide-slate-100 overflow-y-auto rounded-lg border border-slate-200">
+              <div className="max-h-72 divide-y divide-slate-100 dark:divide-slate-800 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700">
                 {loadingUsers
-                  ? <p className="p-4 text-sm text-slate-500">Загрузка пользователей…</p>
+                  ? <p className="p-4 text-sm text-slate-500 dark:text-slate-400">Загрузка пользователей…</p>
                   : users.length === 0
-                    ? <p className="p-4 text-sm text-slate-500">Пользователи не найдены</p>
+                    ? <p className="p-4 text-sm text-slate-500 dark:text-slate-400">Пользователи не найдены</p>
                     : users.map((candidate) => (
-                        <label key={candidate.id} className="flex cursor-pointer items-center gap-3 px-3 py-3 hover:bg-emerald-50">
+                        <label key={candidate.id} className="flex cursor-pointer items-center gap-3 px-3 py-3 hover:bg-emerald-50 dark:hover:bg-emerald-900/20">
                           <input type="checkbox" checked={selectedUserIds.includes(candidate.id)} onChange={() => toggleSelectedUser(candidate.id)} className="h-4 w-4 accent-emerald-700" />
                           <span className="min-w-0 flex-1">
-                            <span className="block truncate text-sm font-semibold">{candidate.name}</span>
-                            <span className="block text-xs text-slate-500">{ROLE_LABELS[candidate.role] || candidate.role}</span>
+                            <span className="block truncate text-sm font-semibold text-slate-800 dark:text-slate-100">{candidate.name}</span>
+                            <span className="block text-xs text-slate-500 dark:text-slate-400">{ROLE_LABELS[candidate.role] || candidate.role}</span>
                           </span>
                         </label>
-                  ))}
+                ))}
               </div>
             </div>
-            <div className="flex items-center justify-between gap-3 border-t border-slate-200 px-4 py-3">
-              <span className="text-xs text-slate-500">Выбрано: {selectedUserIds.length}</span>
+            <div className="flex items-center justify-between gap-3 border-t border-slate-200 dark:border-slate-700 px-4 py-3">
+              <span className="text-xs text-slate-500 dark:text-slate-400">Выбрано: {selectedUserIds.length}</span>
               <button type="submit" disabled={creatingChat || selectedUserIds.length === 0} className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-600 disabled:opacity-50">
                 {creatingChat ? 'Создаём…' : selectedUserIds.length > 1 ? 'Создать группу' : 'Открыть чат'}
               </button>
@@ -2320,24 +2353,24 @@ const closeChat = () => {
 
       {forwardPickerOpen && forwardingMessage && (
         <div className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-950/50 p-3" role="dialog" aria-modal="true" aria-labelledby="forward-chat-title" onClick={cancelForwarding}>
-          <div className="flex max-h-[85dvh] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white shadow-xl" onClick={(event) => event.stopPropagation()}>
-            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-              <h2 id="forward-chat-title" className="font-bold">Переслать в чат</h2>
-              <button type="button" onClick={cancelForwarding} className="rounded-lg px-3 py-1 text-xl text-slate-500 hover:bg-slate-100" aria-label="Закрыть">×</button>
+          <div className="flex max-h-[85dvh] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white dark:bg-slate-900 shadow-xl" onClick={(event) => event.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 px-4 py-3">
+              <h2 id="forward-chat-title" className="font-bold text-slate-800 dark:text-slate-100">Переслать в чат</h2>
+              <button type="button" onClick={cancelForwarding} className="rounded-lg px-3 py-1 text-xl text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Закрыть">×</button>
             </div>
             <div className="overflow-y-auto p-2">
               {chats.map((chat) => (
-                <button key={chat.id} type="button" onClick={() => chooseForwardChat(chat.id)} className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left hover:bg-emerald-50">
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-sm font-semibold text-emerald-800">
+                <button key={chat.id} type="button" onClick={() => chooseForwardChat(chat.id)} className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left hover:bg-emerald-50 dark:hover:bg-emerald-900/20">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900 text-sm font-semibold text-emerald-800 dark:text-emerald-300">
                     {(chatTitle(chat, user?.id) || 'Ч').trim().charAt(0).toUpperCase()}
                   </span>
-                  <span className="min-w-0 flex-1 truncate text-sm font-medium">{chatTitle(chat, user?.id)}</span>
-                  {chat.isGroup && <span className="text-xs text-slate-400">Группа</span>}
+                  <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-800 dark:text-slate-100">{chatTitle(chat, user?.id)}</span>
+                  {chat.isGroup && <span className="text-xs text-slate-400 dark:text-slate-500">Группа</span>}
                 </button>
               ))}
-              {chats.length === 0 && <p className="px-3 py-6 text-center text-sm text-slate-500">Чатов пока нет</p>}
+              {chats.length === 0 && <p className="px-3 py-6 text-center text-sm text-slate-500 dark:text-slate-400">Чатов пока нет</p>}
             </div>
-            <div className="border-t border-slate-200 p-3">
+            <div className="border-t border-slate-200 dark:border-slate-700 p-3">
               <button type="button" onClick={() => { setForwardPickerOpen(false); setNewChatOpen(true); }} className="w-full rounded-lg bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-600">+ Новый чат</button>
             </div>
           </div>
@@ -2346,31 +2379,31 @@ const closeChat = () => {
 
       {participantsOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-3" role="dialog" aria-modal="true" aria-labelledby="chat-participants-title" onClick={() => setParticipantsOpen(false)}>
-          <div className="flex max-h-[90dvh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-xl" onClick={(event) => event.stopPropagation()}>
-            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+          <div className="flex max-h-[90dvh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white dark:bg-slate-900 shadow-xl" onClick={(event) => event.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 px-4 py-3">
               <div>
-                <h2 id="chat-participants-title" className="font-bold">Участники чата</h2>
-                <p className="text-xs text-slate-500">{formatParticipantCount(chatParticipants.length)}</p>
+                <h2 id="chat-participants-title" className="font-bold text-slate-800 dark:text-slate-100">Участники чата</h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400">{formatParticipantCount(chatParticipants.length)}</p>
               </div>
-              <button type="button" onClick={() => setParticipantsOpen(false)} className="rounded-lg px-3 py-1 text-xl text-slate-500 hover:bg-slate-100" aria-label="Закрыть">×</button>
+              <button type="button" onClick={() => setParticipantsOpen(false)} className="rounded-lg px-3 py-1 text-xl text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Закрыть">×</button>
             </div>
             <div className="overflow-y-auto p-3">
-              <div className="divide-y divide-slate-100">
+              <div className="divide-y divide-slate-100 dark:divide-slate-800">
                 {chatParticipants.map((participant) => (
                   <div key={participant.id} className="flex items-center gap-3 px-2 py-3">
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-emerald-100 font-semibold text-emerald-800">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-emerald-100 dark:bg-emerald-900 font-semibold text-emerald-800 dark:text-emerald-300">
                       {participant.photo
                         ? <img src={participant.photo} alt="" className="h-full w-full object-cover" />
                         : (participant.name || '?').trim().charAt(0).toUpperCase()}
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-semibold">
+                      <span className="block truncate text-sm font-semibold text-slate-800 dark:text-slate-100">
                         {participant.name}{participant.id === user?.id ? ' (вы)' : ''}
                       </span>
-                      <span className="block text-xs text-slate-500">
+                      <span className="block text-xs text-slate-500 dark:text-slate-400">
                         {ROLE_LABELS[participant.role] || participant.role}
                         {participant.isOnline
-                          ? <span className="ml-1 font-medium text-emerald-700">· В сети</span>
+                          ? <span className="ml-1 font-medium text-emerald-700 dark:text-emerald-300">· В сети</span>
                           : <span className="ml-1">· {formatLastSeen(participant.lastActive)}</span>}
                       </span>
                     </span>
@@ -2380,16 +2413,16 @@ const closeChat = () => {
                         onClick={() => removeParticipant(participant)}
                         aria-label={`Исключить ${participant.name}`}
                         title="Исключить из группы"
-                        className="flex h-9 w-9 items-center justify-center rounded-full text-xl text-rose-700 hover:bg-rose-50"
+                        className="flex h-9 w-9 items-center justify-center rounded-full text-xl text-rose-700 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-900/20"
                       >×</button>
                     )}
                   </div>
                 ))}
               </div>
               {participantsCanManage && (
-                <div className="mt-3 border-t border-slate-200 pt-3">
+                <div className="mt-3 border-t border-slate-200 dark:border-slate-700 pt-3">
                   {!showAddParticipant ? (
-                    <button type="button" onClick={() => setShowAddParticipant(true)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-50">
+                    <button type="button" onClick={() => setShowAddParticipant(true)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-emerald-800 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/20">
                       <span className="text-xl leading-none">+</span> Добавить участника
                     </button>
                   ) : (
@@ -2398,31 +2431,31 @@ const closeChat = () => {
                         value={participantSearch}
                         onChange={(event) => setParticipantSearch(event.target.value)}
                         placeholder="Найти пользователя…"
-                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-base outline-none focus:border-emerald-500"
+                        className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-base text-slate-700 dark:text-slate-200 outline-none focus:border-emerald-500"
                       />
-                      <div className="max-h-48 divide-y divide-slate-100 overflow-y-auto rounded-lg border border-slate-200">
+                      <div className="max-h-48 divide-y divide-slate-100 dark:divide-slate-800 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700">
                         {participantUsers
                           .filter((candidate) => (
                             !chatParticipants.some((participant) => participant.id === candidate.id)
                             && candidate.name.toLowerCase().includes(participantSearch.trim().toLowerCase())
                           ))
                           .map((candidate) => (
-                            <button key={candidate.id} type="button" onClick={() => addParticipant(candidate.id)} className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left hover:bg-emerald-50">
+                            <button key={candidate.id} type="button" onClick={() => addParticipant(candidate.id)} className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left hover:bg-emerald-50 dark:hover:bg-emerald-900/20">
                               <span className="min-w-0">
-                                <span className="block truncate text-sm font-semibold">{candidate.name}</span>
-                                <span className="block text-xs text-slate-500">{ROLE_LABELS[candidate.role] || candidate.role}</span>
+                                <span className="block truncate text-sm font-semibold text-slate-800 dark:text-slate-100">{candidate.name}</span>
+                                <span className="block text-xs text-slate-500 dark:text-slate-400">{ROLE_LABELS[candidate.role] || candidate.role}</span>
                               </span>
-                              <span aria-hidden="true" className="text-xl font-semibold text-emerald-700">+</span>
+                              <span aria-hidden="true" className="text-xl font-semibold text-emerald-700 dark:text-emerald-300">+</span>
                             </button>
                           ))}
                         {participantUsers.filter((candidate) => (
                           !chatParticipants.some((participant) => participant.id === candidate.id)
                           && candidate.name.toLowerCase().includes(participantSearch.trim().toLowerCase())
                         )).length === 0 && (
-                          <p className="p-3 text-sm text-slate-500">Подходящих пользователей нет</p>
+                          <p className="p-3 text-sm text-slate-500 dark:text-slate-400">Подходящих пользователей нет</p>
                         )}
                       </div>
-                      <button type="button" onClick={() => { setShowAddParticipant(false); setParticipantSearch(''); }} className="rounded px-2 py-1 text-sm text-slate-600 hover:bg-slate-100">Отмена</button>
+                      <button type="button" onClick={() => { setShowAddParticipant(false); setParticipantSearch(''); }} className="rounded px-2 py-1 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800">Отмена</button>
                     </div>
                   )}
                 </div>
@@ -2434,21 +2467,21 @@ const closeChat = () => {
 
       {attachmentsOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-3" role="dialog" aria-modal="true" aria-labelledby="chat-files-title">
-          <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
-            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+          <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white dark:bg-slate-900 shadow-xl">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 px-4 py-3">
               <div>
-                <h2 id="chat-files-title" className="font-bold">Файлы и медиа</h2>
-                <p className="text-xs text-slate-500">{allAttachments.length} вложений в чате</p>
+                <h2 id="chat-files-title" className="font-bold text-slate-800 dark:text-slate-100">Файлы и медиа</h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400">{allAttachments.length} вложений в чате</p>
               </div>
-              <button type="button" onClick={() => setAttachmentsOpen(false)} className="rounded-lg px-3 py-1 text-xl text-slate-500 hover:bg-slate-100" aria-label="Закрыть">×</button>
+              <button type="button" onClick={() => setAttachmentsOpen(false)} className="rounded-lg px-3 py-1 text-xl text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Закрыть">×</button>
             </div>
             <div className="grid grid-cols-1 gap-3 overflow-y-auto p-4 sm:grid-cols-2 lg:grid-cols-3">
-              {allAttachments.length === 0 ? <p className="col-span-full py-8 text-center text-sm text-slate-500">Вложений пока нет</p> : allAttachments.map((attachment) => (
-                <article key={attachment.id} className="min-w-0 space-y-2 rounded-xl border border-slate-200 p-2">
+              {allAttachments.length === 0 ? <p className="col-span-full py-8 text-center text-sm text-slate-500 dark:text-slate-400">Вложений пока нет</p> : allAttachments.map((attachment) => (
+                <article key={attachment.id} className="min-w-0 space-y-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-2">
                   <AttachmentPreview attachment={attachment} onOpenMedia={openMedia} />
                   <div className="min-w-0">
-                    <p className="truncate text-xs font-semibold" title={attachment.filename}>{attachment.filename}</p>
-                    <p className="text-[11px] text-slate-500">{fileKind(attachment.mimeType)} · {attachment.message.sender.name} · {formatAttachmentDateTime(attachment.createdAt)}</p>
+                    <p className="truncate text-xs font-semibold text-slate-800 dark:text-slate-100" title={attachment.filename}>{attachment.filename}</p>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">{fileKind(attachment.mimeType)} · {attachment.message.sender.name} · {formatAttachmentDateTime(attachment.createdAt)}</p>
                   </div>
                 </article>
               ))}
@@ -2467,40 +2500,40 @@ const closeChat = () => {
 
       {profileOpen && activeChatRecipient && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-3 sm:items-center" onClick={() => setProfileOpen(false)}>
-          <div className="w-full max-w-xl overflow-hidden rounded-2xl bg-white shadow-2xl" onClick={(event) => event.stopPropagation()}>
-            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-              <button type="button" onClick={() => setProfileOpen(false)} className="rounded-lg px-2 py-1 text-slate-500 hover:bg-slate-100">←</button>
+          <div className="w-full max-w-xl overflow-hidden rounded-2xl bg-white dark:bg-slate-900 shadow-2xl" onClick={(event) => event.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 px-4 py-3">
+              <button type="button" onClick={() => setProfileOpen(false)} className="rounded-lg px-2 py-1 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800">←</button>
             </div>
             <div className="space-y-5 p-5">
               <div className="flex flex-col items-center text-center">
-                <span className="relative mb-3 flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-emerald-100 text-2xl font-bold text-emerald-800">
+                <span className="relative mb-3 flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border border-slate-200 dark:border-slate-700 bg-emerald-100 dark:bg-emerald-900 text-2xl font-bold text-emerald-800 dark:text-emerald-300">
                   {activeChatRecipient.photo ? <img src={activeChatRecipient.photo} alt={activeChatRecipient.name} className="h-full w-full object-cover" /> : (activeChatRecipient.name || 'Ч').charAt(0).toUpperCase()}
                 </span>
-                <h3 className="text-xl font-bold text-slate-800">{activeChatRecipient.name}</h3>
-                <p className="text-sm text-slate-500">{ROLE_LABELS[activeChatRecipient.role] || activeChatRecipient.role}</p>
-                <p className={`mt-2 text-sm ${recipientIsOnline ? 'font-medium text-emerald-700' : 'text-slate-600'}`}>{recipientStatusText}</p>
+                <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100">{activeChatRecipient.name}</h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400">{ROLE_LABELS[activeChatRecipient.role] || activeChatRecipient.role}</p>
+                <p className={`mt-2 text-sm ${recipientIsOnline ? 'font-medium text-emerald-700 dark:text-emerald-300' : 'text-slate-600 dark:text-slate-400'}`}>{recipientStatusText}</p>
               </div>
               <div className="flex gap-2">
                 {activeChatRecipient.phone && (
-                  <a href={`tel:${activeChatRecipient.phone}`} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-50 px-3 py-3 text-sm font-semibold text-emerald-800">
+                  <a href={`tel:${activeChatRecipient.phone}`} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 px-3 py-3 text-sm font-semibold text-emerald-800 dark:text-emerald-300">
                     <svg aria-hidden="true" viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M6 3.5 8.5 7l-1.6 1.7a12 12 0 0 0 4.4 4.4l1.7-1.6 3.5 2.5-.8 2.3a1.5 1.5 0 0 1-1.6 1C8 16.4 3.6 12 2.7 5.9a1.5 1.5 0 0 1 1-1.6z" /></svg>
                     Звонок
                   </a>
                 )}
-                <button type="button" onClick={() => { setProfileOpen(false); setSearchOpen(true); setMessageSearch(''); }} className="flex flex-1 items-center justify-center rounded-xl bg-emerald-50 px-3 py-3 text-sm font-semibold text-emerald-800 hover:bg-emerald-100">Найти</button>
-                <button type="button" onClick={() => { setProfileOpen(false); setSettingsOpen(true); }} aria-label="Настройки чата" title="Настройки чата" className="rounded-full px-3 text-lg leading-none text-slate-500 hover:bg-slate-100">⋮</button>
+                <button type="button" onClick={() => { setProfileOpen(false); setSearchOpen(true); setMessageSearch(''); }} className="flex flex-1 items-center justify-center rounded-xl bg-emerald-50 dark:bg-emerald-900/20 px-3 py-3 text-sm font-semibold text-emerald-800 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-800">Найти</button>
+                <button type="button" onClick={() => { setProfileOpen(false); setSettingsOpen(true); }} aria-label="Настройки чата" title="Настройки чата" className="rounded-full px-3 text-lg leading-none text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800">⋮</button>
               </div>
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-3">
                 <button
                   type="button"
                   onClick={() => {
                     setProfileOpen(false);
                     setProfileAttachmentsModalOpen(true);
                   }}
-                  className="flex w-full items-center justify-between text-left text-sm font-semibold text-slate-700 hover:text-emerald-800"
+                  className="flex w-full items-center justify-between text-left text-sm font-semibold text-slate-700 dark:text-slate-300 hover:text-emerald-800 dark:hover:text-emerald-300"
                 >
                   <span>Вложения{profileAttachments.length ? ` (${profileAttachments.length})` : ''}</span>
-                  <svg aria-hidden="true" viewBox="0 0 20 20" className="h-4 w-4 text-slate-500" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                  <svg aria-hidden="true" viewBox="0 0 20 20" className="h-4 w-4 text-slate-500 dark:text-slate-400" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
                     <path d="m7 4 6 6-6 6" />
                   </svg>
                 </button>
@@ -2512,19 +2545,19 @@ const closeChat = () => {
 
       {profileAttachmentsModalOpen && activeChatRecipient && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/50 p-3" role="dialog" aria-modal="true" aria-labelledby="profile-attachments-title">
-          <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
-            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+          <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white dark:bg-slate-900 shadow-xl">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 px-4 py-3">
               <div>
-                <h2 id="profile-attachments-title" className="font-bold">Вложения чата</h2>
-                <p className="text-xs text-slate-500">Все участники · {profileAttachments.length} вложений</p>
+                <h2 id="profile-attachments-title" className="font-bold text-slate-800 dark:text-slate-100">Вложения чата</h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Все участники · {profileAttachments.length} вложений</p>
               </div>
-              <button type="button" onClick={() => setProfileAttachmentsModalOpen(false)} className="rounded-lg px-3 py-1 text-xl text-slate-500 hover:bg-slate-100" aria-label="Закрыть">×</button>
+              <button type="button" onClick={() => setProfileAttachmentsModalOpen(false)} className="rounded-lg px-3 py-1 text-xl text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Закрыть">×</button>
             </div>
             <div className="grid grid-cols-1 gap-3 overflow-y-auto p-4 sm:grid-cols-2 lg:grid-cols-3">
               {profileAttachments.length === 0
-                ? <p className="col-span-full py-8 text-center text-sm text-slate-500">Вложений пока нет</p>
+                ? <p className="col-span-full py-8 text-center text-sm text-slate-500 dark:text-slate-400">Вложений пока нет</p>
                 : profileAttachments.map((attachment) => (
-                  <article key={attachment.id} className="min-w-0 space-y-2 rounded-xl border border-slate-200 p-2">
+                  <article key={attachment.id} className="min-w-0 space-y-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-2">
                     <AttachmentPreview
                       attachment={attachment}
                       onOpenMedia={() => {
@@ -2533,8 +2566,8 @@ const closeChat = () => {
                       }}
                     />
                     <div className="min-w-0">
-                      <p className="truncate text-xs font-semibold" title={attachment.filename}>{attachment.filename}</p>
-                      <p className="text-[11px] text-slate-500">{fileKind(attachment.mimeType)} · {formatAttachmentDateTime(attachment.createdAt)}</p>
+                      <p className="truncate text-xs font-semibold text-slate-800 dark:text-slate-100" title={attachment.filename}>{attachment.filename}</p>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">{fileKind(attachment.mimeType)} · {formatAttachmentDateTime(attachment.createdAt)}</p>
                     </div>
                   </article>
                 ))}
@@ -2545,19 +2578,19 @@ const closeChat = () => {
 
       {inviteModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-3" role="dialog" aria-modal="true" aria-labelledby="invite-title" onClick={() => { setInviteModalOpen(false); setInvitePhone(''); }}>
-          <div className="w-full max-w-sm flex flex-col overflow-hidden rounded-2xl bg-white shadow-xl" onClick={(event) => event.stopPropagation()}>
-            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-              <h2 id="invite-title" className="font-bold">Пригласить по номеру</h2>
-              <button type="button" onClick={() => { setInviteModalOpen(false); setInvitePhone(''); }} className="rounded-lg px-3 py-1 text-xl text-slate-500 hover:bg-slate-100" aria-label="Закрыть">×</button>
+          <div className="w-full max-w-sm flex flex-col overflow-hidden rounded-2xl bg-white dark:bg-slate-900 shadow-xl" onClick={(event) => event.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 px-4 py-3">
+              <h2 id="invite-title" className="font-bold text-slate-800 dark:text-slate-100">Пригласить по номеру</h2>
+              <button type="button" onClick={() => { setInviteModalOpen(false); setInvitePhone(''); }} className="rounded-lg px-3 py-1 text-xl text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Закрыть">×</button>
             </div>
             <div className="p-4 space-y-4">
-              <p className="text-sm text-slate-600">Введите номер телефона, на который придёт ссылка-приглашение в этот чат.</p>
+              <p className="text-sm text-slate-600 dark:text-slate-400">Введите номер телефона, на который придёт ссылка-приглашение в этот чат.</p>
               <input
                 type="tel"
                 value={invitePhone}
                 onChange={(e) => setInvitePhone(e.target.value.replace(/\D/g, '').slice(0, 11))}
                 placeholder="7 XXX XXX XX XX"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
                 autoFocus
               />
               <button
@@ -2575,7 +2608,7 @@ const closeChat = () => {
 
       <SettingsDrawer open={settingsDrawerOpen} onClose={() => setSettingsDrawerOpen(false)} user={user} />
 
-      <footer className="px-4 pb-4 text-center text-[11px] text-slate-400 md:hidden">
+      <footer className="px-4 pb-4 text-center text-[11px] text-slate-400 dark:text-slate-500 md:hidden">
         <button type="button" onClick={handleLogout} className="underline">Выйти из аккаунта</button>
       </footer>
     </main>

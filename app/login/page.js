@@ -36,7 +36,7 @@ class LoginErrorBoundary extends React.Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+        <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-300 text-sm">
           <p className="font-bold mb-1">Произошла ошибка при отображении формы входа</p>
           <p className="text-xs mb-3">{this.state.error?.message || 'Попробуйте обновить страницу.'}</p>
           <button
@@ -560,20 +560,20 @@ export default function LoginPage() {
   return (
     <LoginErrorBoundary onReset={() => { setLoading(false); inflightRef.current = false; }}>
       {isSavedPhoneMode && savedPhone ? (
-        <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-12 sm:px-6 lg:px-8">
-          <div className="w-full max-w-md space-y-8 bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
+        <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-950 px-4 py-12 sm:px-6 lg:px-8">
+          <div className="w-full max-w-md space-y-8 bg-white dark:bg-slate-900 p-8 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
             <div>
-              <h2 className="mt-6 text-center text-3xl font-extrabold text-emerald-900">
+              <h2 className="mt-6 text-center text-3xl font-extrabold text-emerald-900 dark:text-emerald-300">
                 Вход в систему
               </h2>
-              <p className="mt-2 text-center text-base text-slate-600 font-medium">
-                Вы входите с телефона <span className="font-bold text-slate-900">{savedPhone}</span>
+              <p className="mt-2 text-center text-base text-slate-600 dark:text-slate-400 font-medium">
+                Вы входите с телефона <span className="font-bold text-slate-900 dark:text-slate-100">{savedPhone}</span>
                 <br />Это ваш номер?
               </p>
             </div>
 
             {error && (
-              <div className="text-red-600 text-sm bg-red-50 p-3 rounded-lg border border-red-200">
+              <div className="text-red-600 dark:text-red-400 text-sm bg-red-50 dark:bg-red-900/20 p-3 rounded-lg border border-red-200 dark:border-red-800">
                 {error}
               </div>
             )}
@@ -603,7 +603,7 @@ export default function LoginPage() {
                   setPasswordRequired(false);
                 }}
                 disabled={loading}
-                className="w-full flex justify-center py-3 px-4 border border-slate-300 rounded-lg shadow-sm text-base font-medium text-slate-700 bg-white hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500"
+                className="w-full flex justify-center py-3 px-4 border border-slate-300 dark:border-slate-600 rounded-lg shadow-sm text-base font-medium text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500"
               >
                 Нет, ввести другой номер
               </button>
@@ -611,19 +611,19 @@ export default function LoginPage() {
           </div>
         </div>
       ) : (
-        <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-12 sm:px-6 lg:px-8">
-          <div className="w-full max-w-md space-y-8 bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
+        <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-950 px-4 py-12 sm:px-6 lg:px-8">
+          <div className="w-full max-w-md space-y-8 bg-white dark:bg-slate-900 p-8 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
             <div>
-              <h2 className="mt-6 text-center text-3xl font-extrabold text-emerald-900">
+              <h2 className="mt-6 text-center text-3xl font-extrabold text-emerald-900 dark:text-emerald-300">
                 Вход в систему
               </h2>
-              <p className="mt-2 text-center text-sm text-slate-500">
+              <p className="mt-2 text-center text-sm text-slate-500 dark:text-slate-400">
                 {passwordRequired ? 'Введите номер телефона и пароль' : 'Введите ваш номер телефона без пароля'}
               </p>
             </div>
             <form className="mt-8 space-y-6" onSubmit={handleLogin}>
               <div>
-                <label htmlFor="phone" className="block text-sm font-medium text-slate-700">
+                <label htmlFor="phone" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
                   Номер телефона
                 </label>
                 <input
@@ -637,13 +637,13 @@ export default function LoginPage() {
                     setPassword('');
                     setPasswordRequired(false);
                   }}
-                  className="mt-1 block w-full px-4 py-3 rounded-lg border border-slate-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 text-slate-900 text-lg"
+                  className="mt-1 block w-full px-4 py-3 rounded-lg border border-slate-300 dark:border-slate-600 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-800 text-lg"
                 />
               </div>
 
               {passwordRequired && (
                 <div>
-                  <label htmlFor="password" className="block text-sm font-medium text-slate-700">
+                  <label htmlFor="password" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
                     Пароль
                   </label>
                   <input
@@ -654,13 +654,13 @@ export default function LoginPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
-                    className="mt-1 block w-full px-4 py-3 rounded-lg border border-slate-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 text-slate-900 text-lg"
+                    className="mt-1 block w-full px-4 py-3 rounded-lg border border-slate-300 dark:border-slate-600 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-800 text-lg"
                   />
                 </div>
               )}
 
               {error && (
-                <div className="text-red-600 text-sm bg-red-50 p-3 rounded-lg border border-red-200">
+                <div className="text-red-600 dark:text-red-400 text-sm bg-red-50 dark:bg-red-900/20 p-3 rounded-lg border border-red-200 dark:border-red-800">
                   {error}
                 </div>
               )}

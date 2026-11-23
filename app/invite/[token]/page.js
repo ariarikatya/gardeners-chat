@@ -102,7 +102,7 @@ export default function InvitePage({ params }) {
 
   if (loading) {
     return (
-      <div className="flex h-[100dvh] items-center justify-center bg-slate-50">
+      <div className="flex h-[100dvh] items-center justify-center bg-slate-50 dark:bg-slate-950">
         <div className="animate-spin rounded-full h-8 w-8 border-4 border-emerald-600 border-t-transparent" />
       </div>
     );
@@ -110,14 +110,14 @@ export default function InvitePage({ params }) {
 
   if (error && !invite) {
     return (
-      <div className="flex h-[100dvh] items-center justify-center bg-slate-50 px-4">
+      <div className="flex h-[100dvh] items-center justify-center bg-slate-50 dark:bg-slate-950 px-4">
         <div className="text-center max-w-md">
           <svg viewBox="0 0 24 24" className="mx-auto h-16 w-16 text-rose-500" fill="none" stroke="currentColor" strokeWidth="1.5">
             <circle cx="12" cy="12" r="10" />
             <path d="M12 8v4M12 16h.01" />
           </svg>
-          <h1 className="mt-4 text-xl font-bold text-slate-800">Приглашение недействительно</h1>
-          <p className="mt-2 text-slate-600">{error}</p>
+          <h1 className="mt-4 text-xl font-bold text-slate-800 dark:text-slate-100">Приглашение недействительно</h1>
+          <p className="mt-2 text-slate-600 dark:text-slate-400">{error}</p>
           <button onClick={handleLoginClick} className="mt-6 rounded-lg bg-emerald-700 px-6 py-2 text-sm font-semibold text-white hover:bg-emerald-600">Войти в аккаунт</button>
         </div>
       </div>
@@ -126,14 +126,14 @@ export default function InvitePage({ params }) {
 
   if (invite?.expired || invite?.used) {
     return (
-      <div className="flex h-[100dvh] items-center justify-center bg-slate-50 px-4">
+      <div className="flex h-[100dvh] items-center justify-center bg-slate-50 dark:bg-slate-950 px-4">
         <div className="text-center max-w-md">
           <svg viewBox="0 0 24 24" className="mx-auto h-16 w-16 text-amber-500" fill="none" stroke="currentColor" strokeWidth="1.5">
             <circle cx="12" cy="12" r="10" />
             <path d="M12 6v6l4 2" />
           </svg>
-          <h1 className="mt-4 text-xl font-bold text-slate-800">Приглашение недействительно</h1>
-          <p className="mt-2 text-slate-600">
+          <h1 className="mt-4 text-xl font-bold text-slate-800 dark:text-slate-100">Приглашение недействительно</h1>
+          <p className="mt-2 text-slate-600 dark:text-slate-400">
             {invite.expired ? 'Срок действия приглашения истёк (7 дней).' : 'Это приглашение уже было использовано.'}
           </p>
           <button onClick={handleLoginClick} className="mt-6 rounded-lg bg-emerald-700 px-6 py-2 text-sm font-semibold text-white hover:bg-emerald-600">Войти в аккаунт</button>
@@ -144,15 +144,15 @@ export default function InvitePage({ params }) {
 
   if (user && user.phone !== invite.phone && !['ADMIN', 'LEADER'].includes(user.role)) {
     return (
-      <div className="flex h-[100dvh] items-center justify-center bg-slate-50 px-4">
+      <div className="flex h-[100dvh] items-center justify-center bg-slate-50 dark:bg-slate-950 px-4">
         <div className="text-center max-w-md">
           <svg viewBox="0 0 24 24" className="mx-auto h-16 w-16 text-amber-500" fill="none" stroke="currentColor" strokeWidth="1.5">
             <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
             <path d="M9 12l2 2 4-4" />
           </svg>
-          <h1 className="mt-4 text-xl font-bold text-slate-800">Приглашение для другого номера</h1>
-          <p className="mt-2 text-slate-600">Это приглашение предназначено для номера <strong>{invite.phone}</strong>.</p>
-          <p className="mt-2 text-sm text-slate-500">Выйдите из аккаунта и перейдите по ссылке снова, чтобы присоединиться.</p>
+          <h1 className="mt-4 text-xl font-bold text-slate-800 dark:text-slate-100">Приглашение для другого номера</h1>
+          <p className="mt-2 text-slate-600 dark:text-slate-400">Это приглашение предназначено для номера <strong>{invite.phone}</strong>.</p>
+          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Выйдите из аккаунта и перейдите по ссылке снова, чтобы присоединиться.</p>
           <button onClick={handleLoginClick} className="mt-6 rounded-lg bg-emerald-700 px-6 py-2 text-sm font-semibold text-white hover:bg-emerald-600">Выйти и войти по номеру приглашения</button>
         </div>
       </div>
@@ -161,41 +161,41 @@ export default function InvitePage({ params }) {
 
   if (user && (user.phone === invite.phone || ['ADMIN', 'LEADER'].includes(user.role))) {
     return (
-      <div className="flex h-[100dvh] items-center justify-center bg-slate-50 px-4">
+      <div className="flex h-[100dvh] items-center justify-center bg-slate-50 dark:bg-slate-950 px-4">
         <div className="text-center max-w-md">
           <svg viewBox="0 0 24 24" className="mx-auto h-16 w-16 text-emerald-500" fill="none" stroke="currentColor" strokeWidth="1.5">
             <circle cx="12" cy="12" r="10" />
             <path d="M9 12l2 2 4-4" />
           </svg>
-          <h1 className="mt-4 text-xl font-bold text-slate-800">Приглашение в чат «{invite.chatName}»</h1>
-          <p className="mt-2 text-slate-600">Пригласил: {invite.inviterName}</p>
-          <p className="mt-2 text-sm text-slate-500">Ваш номер совпадает с приглашением. Нажмите кнопку ниже, чтобы присоединиться.</p>
+          <h1 className="mt-4 text-xl font-bold text-slate-800 dark:text-slate-100">Приглашение в чат «{invite.chatName}»</h1>
+          <p className="mt-2 text-slate-600 dark:text-slate-400">Пригласил: {invite.inviterName}</p>
+          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Ваш номер совпадает с приглашением. Нажмите кнопку ниже, чтобы присоединиться.</p>
           <button onClick={acceptInvite} disabled={submitting} className="mt-6 rounded-lg bg-emerald-700 px-6 py-2 text-sm font-semibold text-white hover:bg-emerald-600 disabled:opacity-50">
             {submitting ? 'Присоединяем…' : 'Присоединиться'}
           </button>
-          {error && <p className="mt-4 text-sm text-rose-600">{error}</p>}
+          {error && <p className="mt-4 text-sm text-rose-600 dark:text-rose-400">{error}</p>}
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-[100dvh] items-center justify-center bg-slate-50 px-4 py-12">
-      <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-sm border border-slate-200">
+    <div className="flex min-h-[100dvh] items-center justify-center bg-slate-50 dark:bg-slate-950 px-4 py-12">
+      <div className="w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 p-6 shadow-sm border border-slate-200 dark:border-slate-700">
         <div className="text-center mb-6">
           <svg viewBox="0 0 24 24" className="mx-auto h-12 w-12 text-emerald-600" fill="none" stroke="currentColor" strokeWidth="1.5">
             <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
             <polyline points="15 3 21 3 21 9" />
             <line x1="10" y1="14" x2="21" y2="3" />
           </svg>
-          <h1 className="mt-4 text-xl font-bold text-slate-800">Приглашение в чат</h1>
-          <p className="mt-1 text-slate-600">«{invite?.chatName || 'Чат'}»</p>
-          <p className="mt-1 text-sm text-slate-500">Пригласил: {invite?.inviterName || 'участник'}</p>
+          <h1 className="mt-4 text-xl font-bold text-slate-800 dark:text-slate-100">Приглашение в чат</h1>
+          <p className="mt-1 text-slate-600 dark:text-slate-400">«{invite?.chatName || 'Чат'}»</p>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Пригласил: {invite?.inviterName || 'участник'}</p>
         </div>
 
         <form onSubmit={handleRegister} className="space-y-4">
           <div>
-            <label htmlFor="name" className="block text-sm font-medium text-slate-700 mb-1">Имя</label>
+            <label htmlFor="name" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Имя</label>
             <input
               id="name"
               type="text"
@@ -203,11 +203,11 @@ export default function InvitePage({ params }) {
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               required
               autoComplete="name"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+              className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
             />
           </div>
           <div>
-            <label htmlFor="phone" className="block text-sm font-medium text-slate-700 mb-1">Номер телефона</label>
+            <label htmlFor="phone" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Номер телефона</label>
             <input
               id="phone"
               type="tel"
@@ -215,11 +215,11 @@ export default function InvitePage({ params }) {
               onChange={(e) => setFormData({ ...formData, phone: e.target.value.replace(/\D/g, '').slice(0, 11) })}
               required
               autoComplete="tel"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+              className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
             />
           </div>
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-slate-700 mb-1">Пароль</label>
+            <label htmlFor="password" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Пароль</label>
             <input
               id="password"
               type="password"
@@ -228,11 +228,11 @@ export default function InvitePage({ params }) {
               required
               minLength={6}
               autoComplete="new-password"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+              className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
             />
           </div>
           <div>
-            <label htmlFor="confirmPassword" className="block text-sm font-medium text-slate-700 mb-1">Повторите пароль</label>
+            <label htmlFor="confirmPassword" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Повторите пароль</label>
             <input
               id="confirmPassword"
               type="password"
@@ -240,10 +240,10 @@ export default function InvitePage({ params }) {
               onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
               required
               autoComplete="new-password"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+              className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
             />
           </div>
-          {error && <p className="text-sm text-rose-600 text-center">{error}</p>}
+          {error && <p className="text-sm text-rose-600 dark:text-rose-400 text-center">{error}</p>}
           <button
             type="submit"
             disabled={submitting}
@@ -253,9 +253,9 @@ export default function InvitePage({ params }) {
           </button>
         </form>
 
-        <p className="mt-6 text-center text-sm text-slate-500">
+        <p className="mt-6 text-center text-sm text-slate-500 dark:text-slate-400">
           Уже есть аккаунт?{' '}
-          <button onClick={handleLoginClick} className="font-semibold text-emerald-700 hover:underline">Войти</button>
+          <button onClick={handleLoginClick} className="font-semibold text-emerald-700 dark:text-emerald-300 hover:underline">Войти</button>
         </p>
       </div>
     </div>
