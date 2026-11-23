@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { hashPassword } from '@/lib/password';
 import { signToken } from '@/lib/jwt';
+import { findOrCreateDirectChat } from '@/lib/directChat';
 
 export async function POST(req) {
   try {
@@ -40,7 +41,6 @@ export async function POST(req) {
         return NextResponse.json({ error: 'Приглашение предназначено для другого номера' }, { status: 400 });
       }
 
-      chatId = invite.chatId;
       inviterName = invite.createdBy.name;
     }
 
@@ -67,13 +67,11 @@ export async function POST(req) {
         select: { id: true, name: true, phone: true, role: true },
       });
 
-      if (chatId) {
-        await tx.chatParticipant.create({
-          data: { chatId, userId: newUser.id },
-        });
+      if (inviteToken) {
+        chatId = await findOrCreateDirectChat(tx, invite.createdById, newUser.id);
         await tx.chatInvite.update({
           where: { token: inviteToken },
-          data: { usedAt: new Date() },
+          data: { usedAt: new Date(), chatId },
         });
         await tx.chat.update({ where: { id: chatId }, data: { updatedAt: new Date() } });
       }
@@ -83,7 +81,7 @@ export async function POST(req) {
 
     const token = await signToken({ userId: user.id, role: user.role });
 
-    const response = NextResponse.json({ user });
+    const response = NextResponse.json({ user, chatId });
     response.cookies.set('token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',

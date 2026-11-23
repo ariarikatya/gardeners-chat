@@ -11,10 +11,10 @@ export async function GET(req) {
     const users = await prisma.user.findMany({
       where: {
         id: { not: auth.user.id },
-        role: { in: ['ADMIN', 'LEADER', 'GARDENER'] },
+        role: { in: ['ADMIN', 'LEADER', 'GARDENER', 'CHAT'] },
         ...(query ? { name: { contains: query, mode: 'insensitive' } } : {}),
       },
-      select: { id: true, name: true, role: true },
+      select: { id: true, name: true, role: true, phone: true, hidePhone: true },
       orderBy: [{ name: 'asc' }, { id: 'asc' }],
     });
 

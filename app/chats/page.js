@@ -106,6 +106,21 @@ function formatLastSeen(lastActive) {
   return `Был в сети ${date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}, ${time}`;
 }
 
+function formatPhoneForList(phone, hidePhone) {
+  if (!phone) return '';
+  const digits = phone.replace(/\D/g, '');
+  if (hidePhone) {
+    if (digits.length >= 3) {
+      return `+${digits.slice(0, 2)} ${digits.slice(2, 3)}***`;
+    }
+    return phone;
+  }
+  if (digits.length === 11) {
+    return `+${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4, 7)}-${digits.slice(7, 9)}-${digits.slice(9, 11)}`;
+  }
+  return phone;
+}
+
 function formatPhone(phone, hidePhone) {
   if (!phone) return '';
   const digits = phone.replace(/\D/g, '');
@@ -576,11 +591,11 @@ export default function ChatsPage() {
   const [deletedMessagesMap, setDeletedMessagesMap] = useState(new Map());
   const [chatSearch, setChatSearch] = useState('');
   const [invitePhone, setInvitePhone] = useState('');
-  const [inviteChatId, setInviteChatId] = useState('');
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
   const [creatingInvite, setCreatingInvite] = useState(false);
   const [inviteError, setInviteError] = useState('');
   const [inviteResult, setInviteResult] = useState(null);
+  const [linkCopied, setLinkCopied] = useState(false);
   const [editingMessageId, setEditingMessageId] = useState('');
   const [editDraft, setEditDraft] = useState('');
   const [savingEdit, setSavingEdit] = useState(false);
@@ -1225,25 +1240,21 @@ useEffect(() => {
       setInviteError('Введите номер телефона');
       return;
     }
-    if (!inviteChatId) {
-      setInviteError('Выберите чат для приглашения');
-      return;
-    }
     try {
       setCreatingInvite(true);
       setInviteError('');
-      const data = await requestJson(`/api/chats/${encodeURIComponent(inviteChatId)}/invites`, {
+      const data = await requestJson('/api/invites', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone }),
       });
-      if (data.addedExisting) {
+      if (data.existing) {
         setInviteModalOpen(false);
         setInvitePhone('');
-        setInviteChatId('');
         setInviteResult(null);
-        await loadChats();
-        setSuccess('Пользователь уже был в системе и добавлен в чат');
+        setInviteError('');
+        chooseChat(data.chatId);
+        setSuccess('Личный чат открыт');
         return;
       }
       setInviteResult({ url: data.url, phone });
@@ -1736,7 +1747,7 @@ const closeChat = () => {
             </button>
             <button
               type="button"
-              onClick={() => { setError(''); setInvitePhone(''); setInviteChatId(activeChatId || chats[0]?.id || ''); setInviteError(''); setInviteResult(null); setInviteModalOpen(true); }}
+              onClick={() => { setError(''); setInvitePhone(''); setInviteError(''); setInviteResult(null); setInviteModalOpen(true); }}
               className="rounded-lg p-2 text-slate-200 hover:bg-emerald-800 hover:text-white transition-colors"
               aria-label="Пригласить по номеру"
             >
@@ -2510,7 +2521,11 @@ const closeChat = () => {
                             <button key={candidate.id} type="button" onClick={() => addParticipant(candidate.id)} className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left hover:bg-emerald-50 dark:hover:bg-emerald-900/20">
                               <span className="min-w-0">
                                 <span className="block truncate text-sm font-semibold text-slate-800 dark:text-slate-100">{candidate.name}</span>
-                                <span className="block text-xs text-slate-500 dark:text-slate-400">{ROLE_LABELS[candidate.role] || candidate.role}</span>
+                            <span className="block text-xs text-slate-500 dark:text-slate-400">
+                              {candidate.role === 'CHAT'
+                                ? formatPhoneForList(candidate.phone, candidate.hidePhone)
+                                : `${ROLE_LABELS[candidate.role] || candidate.role} · ${formatPhoneForList(candidate.phone, candidate.hidePhone)}`}
+                            </span>
                               </span>
                               <span aria-hidden="true" className="text-xl font-semibold text-emerald-700 dark:text-emerald-300">+</span>
                             </button>
@@ -2644,30 +2659,16 @@ const closeChat = () => {
       )}
 
       {inviteModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-3" role="dialog" aria-modal="true" aria-labelledby="invite-title" onClick={() => { setInviteModalOpen(false); setInvitePhone(''); setInviteChatId(''); setInviteError(''); setInviteResult(null); }}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-3" role="dialog" aria-modal="true" aria-labelledby="invite-title" onClick={() => { setInviteModalOpen(false); setInvitePhone(''); setInviteError(''); setInviteResult(null); setLinkCopied(false); }}>
           <div className="w-full max-w-sm flex flex-col overflow-hidden rounded-2xl bg-white dark:bg-slate-900 shadow-xl" onClick={(event) => event.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 px-4 py-3">
               <h2 id="invite-title" className="font-bold text-slate-800 dark:text-slate-100">Пригласить по номеру</h2>
-              <button type="button" onClick={() => { setInviteModalOpen(false); setInvitePhone(''); setInviteChatId(''); setInviteError(''); setInviteResult(null); }} className="rounded-lg px-3 py-1 text-xl text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Закрыть">×</button>
+              <button type="button" onClick={() => { setInviteModalOpen(false); setInvitePhone(''); setInviteError(''); setInviteResult(null); setLinkCopied(false); }} className="rounded-lg px-3 py-1 text-xl text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Закрыть">×</button>
             </div>
             <div className="p-4 space-y-4">
               {!inviteResult ? (
                 <>
-                  <p className="text-sm text-slate-600 dark:text-slate-400">Выберите чат и введите номер телефона для приглашения.</p>
-                  <div className="space-y-2">
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">В какой чат пригласить</label>
-                    <select
-                      value={inviteChatId}
-                      onChange={(e) => setInviteChatId(e.target.value)}
-                      className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-                    >
-                      {chats.map((chat) => (
-                        <option key={chat.id} value={chat.id}>
-                          {chatTitle(chat, user?.id)}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  <p className="text-sm text-slate-600 dark:text-slate-400">Введите номер телефона, чтобы пригласить человека в личный чат.</p>
                   <div className="space-y-2">
                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Номер телефона</label>
                     <input
@@ -2687,7 +2688,7 @@ const closeChat = () => {
                   <button
                     type="button"
                     onClick={createInvite}
-                    disabled={creatingInvite || !invitePhone.replace(/\D/g, '').length || !inviteChatId}
+                    disabled={creatingInvite || !invitePhone.replace(/\D/g, '').length}
                     className="w-full rounded-lg bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {creatingInvite ? 'Создаём…' : 'Создать приглашение'}
@@ -2695,9 +2696,20 @@ const closeChat = () => {
                 </>
               ) : (
                 <div className="space-y-4">
+                  {linkCopied && (
+                    <div role="status" className="rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20 px-3 py-2 text-sm text-emerald-800 dark:text-emerald-200 flex items-center justify-between gap-3">
+                      <span>Ссылка скопирована</span>
+                      <button type="button" onClick={() => setLinkCopied(false)} aria-label="Закрыть">×</button>
+                    </div>
+                  )}
                   <div className="rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20 p-3">
                     <p className="text-sm font-medium text-emerald-800 dark:text-emerald-200">Приглашение создано</p>
-                    <p className="mt-1 text-sm text-slate-700 dark:text-slate-300 break-all">{inviteResult.url}</p>
+                    <input
+                      type="text"
+                      readOnly
+                      value={inviteResult.url}
+                      className="mt-2 w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 outline-none focus:border-emerald-500"
+                    />
                   </div>
                   <div className="space-y-2">
                     <button
@@ -2745,8 +2757,8 @@ const closeChat = () => {
                           document.execCommand('copy');
                           document.body.removeChild(textarea);
                         }
-                        setInviteError('Ссылка скопирована — вставьте её в WhatsApp, Telegram или SMS');
-                        setTimeout(() => setInviteError(''), 4000);
+                        setLinkCopied(true);
+                        setTimeout(() => setLinkCopied(false), 3000);
                       }}
                       className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
                     >
@@ -2755,7 +2767,7 @@ const closeChat = () => {
                   </div>
                   <button
                     type="button"
-                    onClick={() => { setInviteModalOpen(false); setInvitePhone(''); setInviteChatId(''); setInviteError(''); setInviteResult(null); }}
+                    onClick={() => { setInviteModalOpen(false); setInvitePhone(''); setInviteError(''); setInviteResult(null); setLinkCopied(false); }}
                     className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
                   >
                     Готово

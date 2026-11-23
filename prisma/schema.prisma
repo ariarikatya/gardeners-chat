@@ -365,7 +365,7 @@ model PushClientLog {
 
 model ChatInvite {
   id          String    @id @default(uuid())
-  chatId      String
+  chatId      String?
   phone       String
   token       String    @unique
   createdById String

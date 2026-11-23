@@ -54,7 +54,6 @@ export default function InvitePage({ params }) {
   }, [invite, user]);
 
   const acceptInvite = async () => {
-    if (!invite?.chatId) return;
     try {
       setSubmitting(true);
       const data = await apiFetch(`/api/invites/${token}/accept`, {
@@ -185,9 +184,9 @@ export default function InvitePage({ params }) {
             <circle cx="12" cy="12" r="10" />
             <path d="M9 12l2 2 4-4" />
           </svg>
-          <h1 className="mt-4 text-xl font-bold text-slate-800 dark:text-slate-100">Приглашение в чат «{invite.chatName}»</h1>
-          <p className="mt-2 text-slate-600 dark:text-slate-400">Пригласил: {invite.inviterName}</p>
-          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Ваш номер совпадает с приглашением. Нажмите кнопку ниже, чтобы присоединиться.</p>
+          <h1 className="mt-4 text-xl font-bold text-slate-800 dark:text-slate-100">Приглашение в личный чат</h1>
+          <p className="mt-2 text-slate-600 dark:text-slate-400">{invite.inviterName} приглашает вас в личный чат</p>
+          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Нажмите кнопку ниже, чтобы присоединиться.</p>
           <button onClick={acceptInvite} disabled={submitting} className="mt-6 rounded-lg bg-emerald-700 px-6 py-2 text-sm font-semibold text-white hover:bg-emerald-600 disabled:opacity-50">
             {submitting ? 'Присоединяем…' : 'Присоединиться'}
           </button>
@@ -206,9 +205,8 @@ export default function InvitePage({ params }) {
             <polyline points="15 3 21 3 21 9" />
             <line x1="10" y1="14" x2="21" y2="3" />
           </svg>
-          <h1 className="mt-4 text-xl font-bold text-slate-800 dark:text-slate-100">Приглашение в чат</h1>
-          <p className="mt-1 text-slate-600 dark:text-slate-400">«{invite?.chatName || 'Чат'}»</p>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Пригласил: {invite?.inviterName || 'участник'}</p>
+          <h1 className="mt-4 text-xl font-bold text-slate-800 dark:text-slate-100">Приглашение в личный чат</h1>
+          <p className="mt-1 text-slate-600 dark:text-slate-400">{invite?.inviterName} приглашает вас в личный чат</p>
         </div>
 
         <form onSubmit={handleRegister} className="space-y-4">

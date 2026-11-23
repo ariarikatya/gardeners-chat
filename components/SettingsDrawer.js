@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import apiFetch from '@/lib/apiFetch';
 
 const CLIENT_VERSION = typeof window !== 'undefined' ? window.CLIENT_VERSION : 'v1.0.0-chat';
@@ -19,6 +19,7 @@ export default function SettingsDrawer({ open, onClose, user, onUpdateUser }) {
   const [pushSubscribed, setPushSubscribed] = useState(false);
   const [pushLoading, setPushLoading] = useState(false);
   const [hidePhone, setHidePhone] = useState(user?.hidePhone ?? true);
+  const scrollContainerRef = useRef(null);
 
   useEffect(() => {
     if (open) {
@@ -104,7 +105,9 @@ export default function SettingsDrawer({ open, onClose, user, onUpdateUser }) {
       if (!response.ok) throw new Error(data.error || 'Не удалось сохранить профиль');
       setProfileData({ name: data.user.name, phone: data.user.phone });
       setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
-      setSuccess('Профиль сохранён');
+      setSuccess('Сохранено');
+      if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = 0;
+      setTimeout(() => setSuccess(''), 3000);
       if (onUpdateUser) onUpdateUser(data.user);
     } catch (err) {
       setError(err.message || 'Ошибка при сохранении');
@@ -304,7 +307,7 @@ export default function SettingsDrawer({ open, onClose, user, onUpdateUser }) {
           </div>
         </nav>
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-6">
+        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-4 space-y-6">
           {error && (
             <div role="alert" className="rounded-lg border border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-900/20 px-3 py-2 text-sm text-rose-800 dark:text-rose-200 flex items-center justify-between gap-3">
               <span>{error}</span>
@@ -527,16 +530,6 @@ export default function SettingsDrawer({ open, onClose, user, onUpdateUser }) {
               )}
             </div>
           )}
-        </div>
-
-        <div className="border-t border-slate-200 dark:border-slate-700 px-4 py-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
-          >
-            Готово
-          </button>
         </div>
       </div>
     </div>

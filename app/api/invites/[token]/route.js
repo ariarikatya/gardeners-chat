@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { verifyToken } from '@/lib/jwt';
 
 export async function GET(req, { params }) {
   const { token } = params;
@@ -9,7 +8,6 @@ export async function GET(req, { params }) {
     const invite = await prisma.chatInvite.findUnique({
       where: { token },
       include: {
-        chat: { select: { name: true } },
         createdBy: { select: { name: true } },
       },
     });
@@ -23,12 +21,10 @@ export async function GET(req, { params }) {
     const used = Boolean(invite.usedAt);
 
     return NextResponse.json({
-      chatName: invite.chat.name || 'Чат',
       inviterName: invite.createdBy.name,
       phone: invite.phone,
       expired,
       used,
-      chatId: invite.chatId,
     });
   } catch (error) {
     console.error('Ошибка GET /api/invites/[token]:', error);

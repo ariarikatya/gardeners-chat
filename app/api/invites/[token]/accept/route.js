@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { verifyToken } from '@/lib/jwt';
+import { findOrCreateDirectChat } from '@/lib/directChat';
 
 async function getUserFromRequest(req) {
   const authHeader = req.headers.get('authorization');
@@ -23,7 +24,7 @@ export async function POST(req, { params }) {
   try {
     const invite = await prisma.chatInvite.findUnique({
       where: { token },
-      include: { chat: true },
+      select: { id: true, token: true, createdById: true, phone: true, expiresAt: true, usedAt: true },
     });
 
     if (!invite) {
@@ -52,20 +53,17 @@ export async function POST(req, { params }) {
       return NextResponse.json({ error: 'Приглашение предназначено для другого номера' }, { status: 403 });
     }
 
+    let chatId;
     await prisma.$transaction(async (tx) => {
-      await tx.chatParticipant.upsert({
-        where: { chatId_userId: { chatId: invite.chatId, userId } },
-        update: { hiddenAt: null },
-        create: { chatId: invite.chatId, userId },
-      });
+      chatId = await findOrCreateDirectChat(tx, invite.createdById, userId);
       await tx.chatInvite.update({
         where: { token },
-        data: { usedAt: new Date() },
+        data: { usedAt: new Date(), chatId },
       });
-      await tx.chat.update({ where: { id: invite.chatId }, data: { updatedAt: new Date() } });
+      await tx.chat.update({ where: { id: chatId }, data: { updatedAt: new Date() } });
     });
 
-    return NextResponse.json({ chatId: invite.chatId });
+    return NextResponse.json({ chatId });
   } catch (error) {
     console.error('Ошибка POST /api/invites/[token]/accept:', error);
     return NextResponse.json({ error: 'Не удалось принять приглашение' }, { status: 500 });
