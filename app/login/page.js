@@ -165,7 +165,7 @@ export default function LoginPage() {
     touchOfflineSession();
     const phoneToUse = targetPhone || savedPhone || phone;
     activateOfflineSession(role, phoneToUse);
-    const rolePath = role === 'ADMIN' ? '/admin' : role === 'LEADER' ? '/leader' : '/gardener';
+    const rolePath = role === 'ADMIN' ? '/chats' : role === 'LEADER' ? '/chats' : '/chats';
     setLoading(false);
     inflightRef.current = false;
 
