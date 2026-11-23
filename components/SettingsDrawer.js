@@ -5,7 +5,7 @@ import apiFetch from '@/lib/apiFetch';
 
 const CLIENT_VERSION = typeof window !== 'undefined' ? window.CLIENT_VERSION : 'v1.0.0-chat';
 
-export default function SettingsDrawer({ open, onClose, user }) {
+export default function SettingsDrawer({ open, onClose, user, onUpdateUser }) {
   const [activeSection, setActiveSection] = useState('profile');
   const [profileData, setProfileData] = useState({ name: '', phone: '' });
   const [passwordData, setPasswordData] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
@@ -18,7 +18,7 @@ export default function SettingsDrawer({ open, onClose, user }) {
   const [success, setSuccess] = useState('');
   const [pushSubscribed, setPushSubscribed] = useState(false);
   const [pushLoading, setPushLoading] = useState(false);
-  const [hidePhone, setHidePhone] = useState(true);
+  const [hidePhone, setHidePhone] = useState(user?.hidePhone ?? true);
 
   useEffect(() => {
     if (open) {
@@ -105,6 +105,7 @@ export default function SettingsDrawer({ open, onClose, user }) {
       setProfileData({ name: data.user.name, phone: data.user.phone });
       setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
       setSuccess('Профиль сохранён');
+      if (onUpdateUser) onUpdateUser(data.user);
     } catch (err) {
       setError(err.message || 'Ошибка при сохранении');
     } finally {

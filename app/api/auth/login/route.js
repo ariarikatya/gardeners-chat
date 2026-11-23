@@ -38,14 +38,49 @@ export async function POST(req) {
       return NextResponse.json({ error: 'Пользователь с таким номером не найден' }, { status: 404 });
     }
 
+    // If user has NOPASS (passwordless), allow login without password
+    if (user.passwordHash === 'NOPASS') {
+      const token = await signToken({
+        userId: user.id,
+        phone: user.phone,
+        role: user.role,
+        gardenerId: user.gardenerId,
+      });
+
+      const response = NextResponse.json({
+        success: true,
+        role: user.role,
+        token,
+        name: user.name || null,
+      });
+
+      response.cookies.set('token', token, {
+        httpOnly: true,
+        secure: isRequestSecure(req),
+        sameSite: 'lax',
+        maxAge: 60 * 60 * 24 * 365,
+        path: '/',
+      });
+
+      return response;
+    }
+
+    // If password is not provided but user has a password, require password
+    if (!password) {
+      return NextResponse.json({ error: 'Введите пароль', passwordRequired: true }, { status: 401 });
+    }
+
+    // For ADMIN/LEADER, check active session or require password
     if ((user.role === 'ADMIN' || user.role === 'LEADER') && !(await hasActiveSessionForUser(req, user))) {
-      if (!password) {
-        return NextResponse.json({ requiresPassword: true });
-      }
       if (!user.passwordHash) {
         return NextResponse.json({ error: 'Пароль для аккаунта не настроен' }, { status: 409 });
       }
       if (!verifyPassword(password, user.passwordHash)) {
+        return NextResponse.json({ error: 'Неверный пароль' }, { status: 401 });
+      }
+    } else {
+      // For other roles, verify password if provided
+      if (user.passwordHash && !verifyPassword(password, user.passwordHash)) {
         return NextResponse.json({ error: 'Неверный пароль' }, { status: 401 });
       }
     }

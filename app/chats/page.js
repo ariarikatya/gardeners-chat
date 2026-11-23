@@ -576,8 +576,11 @@ export default function ChatsPage() {
   const [deletedMessagesMap, setDeletedMessagesMap] = useState(new Map());
   const [chatSearch, setChatSearch] = useState('');
   const [invitePhone, setInvitePhone] = useState('');
+  const [inviteChatId, setInviteChatId] = useState('');
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
   const [creatingInvite, setCreatingInvite] = useState(false);
+  const [inviteError, setInviteError] = useState('');
+  const [inviteResult, setInviteResult] = useState(null);
   const [editingMessageId, setEditingMessageId] = useState('');
   const [editDraft, setEditDraft] = useState('');
   const [savingEdit, setSavingEdit] = useState(false);
@@ -1219,14 +1222,17 @@ useEffect(() => {
   const createInvite = async () => {
     const phone = invitePhone.replace(/\D/g, '');
     if (!phone) {
-      setError('Введите номер телефона');
+      setInviteError('Введите номер телефона');
       return;
     }
-    if (!activeChatId) return;
+    if (!inviteChatId) {
+      setInviteError('Выберите чат для приглашения');
+      return;
+    }
     try {
       setCreatingInvite(true);
-      setError('');
-      const data = await requestJson(`/api/chats/${encodeURIComponent(activeChatId)}/invites`, {
+      setInviteError('');
+      const data = await requestJson(`/api/chats/${encodeURIComponent(inviteChatId)}/invites`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone }),
@@ -1234,31 +1240,15 @@ useEffect(() => {
       if (data.addedExisting) {
         setInviteModalOpen(false);
         setInvitePhone('');
+        setInviteChatId('');
+        setInviteResult(null);
         await loadChats();
         setSuccess('Пользователь уже был в системе и добавлен в чат');
         return;
       }
-      const { url } = data;
-      const shareText = `Присоединяйся к чату: ${url}`;
-      let shared = false;
-      if (navigator.share) {
-        try {
-          await navigator.share({ title: 'Приглашение в чат', text: 'Присоединяйся к чату: ', url });
-          shared = true;
-        } catch (shareError) {
-          if (shareError.name !== 'AbortError') {
-            console.warn('Share failed:', shareError);
-          }
-        }
-      }
-      if (!shared) {
-        await navigator.clipboard.writeText(shareText);
-        setSuccess('Ссылка скопирована — вставьте в WhatsApp, Telegram или SMS');
-      }
-      setInviteModalOpen(false);
-      setInvitePhone('');
+      setInviteResult({ url: data.url, phone });
     } catch (requestError) {
-      setError(requestError.message || 'Не удалось создать приглашение');
+      setInviteError(requestError.message || 'Не удалось создать приглашение');
     } finally {
       setCreatingInvite(false);
     }
@@ -1746,7 +1736,7 @@ const closeChat = () => {
             </button>
             <button
               type="button"
-              onClick={() => { setError(''); setInviteModalOpen(true); setInvitePhone(''); }}
+              onClick={() => { setError(''); setInvitePhone(''); setInviteChatId(activeChatId || chats[0]?.id || ''); setInviteError(''); setInviteResult(null); setInviteModalOpen(true); }}
               className="rounded-lg p-2 text-slate-200 hover:bg-emerald-800 hover:text-white transition-colors"
               aria-label="Пригласить по номеру"
             >
@@ -2654,36 +2644,130 @@ const closeChat = () => {
       )}
 
       {inviteModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-3" role="dialog" aria-modal="true" aria-labelledby="invite-title" onClick={() => { setInviteModalOpen(false); setInvitePhone(''); }}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-3" role="dialog" aria-modal="true" aria-labelledby="invite-title" onClick={() => { setInviteModalOpen(false); setInvitePhone(''); setInviteChatId(''); setInviteError(''); setInviteResult(null); }}>
           <div className="w-full max-w-sm flex flex-col overflow-hidden rounded-2xl bg-white dark:bg-slate-900 shadow-xl" onClick={(event) => event.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 px-4 py-3">
               <h2 id="invite-title" className="font-bold text-slate-800 dark:text-slate-100">Пригласить по номеру</h2>
-              <button type="button" onClick={() => { setInviteModalOpen(false); setInvitePhone(''); }} className="rounded-lg px-3 py-1 text-xl text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Закрыть">×</button>
+              <button type="button" onClick={() => { setInviteModalOpen(false); setInvitePhone(''); setInviteChatId(''); setInviteError(''); setInviteResult(null); }} className="rounded-lg px-3 py-1 text-xl text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Закрыть">×</button>
             </div>
             <div className="p-4 space-y-4">
-              <p className="text-sm text-slate-600 dark:text-slate-400">Введите номер телефона, на который придёт ссылка-приглашение в этот чат.</p>
-              <input
-                type="tel"
-                value={invitePhone}
-                onChange={(e) => setInvitePhone(e.target.value.replace(/\D/g, '').slice(0, 11))}
-                placeholder="7 XXX XXX XX XX"
-                className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-                autoFocus
-              />
-              <button
-                type="button"
-                onClick={createInvite}
-                disabled={creatingInvite || !invitePhone.replace(/\D/g, '').length}
-                className="w-full rounded-lg bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {creatingInvite ? 'Создаём…' : 'Создать приглашение'}
-              </button>
+              {!inviteResult ? (
+                <>
+                  <p className="text-sm text-slate-600 dark:text-slate-400">Выберите чат и введите номер телефона для приглашения.</p>
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">В какой чат пригласить</label>
+                    <select
+                      value={inviteChatId}
+                      onChange={(e) => setInviteChatId(e.target.value)}
+                      className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                    >
+                      {chats.map((chat) => (
+                        <option key={chat.id} value={chat.id}>
+                          {chatTitle(chat, user?.id)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Номер телефона</label>
+                    <input
+                      type="tel"
+                      value={invitePhone}
+                      onChange={(e) => setInvitePhone(e.target.value.replace(/\D/g, '').slice(0, 11))}
+                      placeholder="7 XXX XXX XX XX"
+                      className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                      autoFocus
+                    />
+                  </div>
+                  {inviteError && (
+                    <div className="text-sm text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 rounded-lg p-2" role="alert">
+                      {inviteError}
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={createInvite}
+                    disabled={creatingInvite || !invitePhone.replace(/\D/g, '').length || !inviteChatId}
+                    className="w-full rounded-lg bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {creatingInvite ? 'Создаём…' : 'Создать приглашение'}
+                  </button>
+                </>
+              ) : (
+                <div className="space-y-4">
+                  <div className="rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20 p-3">
+                    <p className="text-sm font-medium text-emerald-800 dark:text-emerald-200">Приглашение создано</p>
+                    <p className="mt-1 text-sm text-slate-700 dark:text-slate-300 break-all">{inviteResult.url}</p>
+                  </div>
+                  <div className="space-y-2">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const shareText = `Присоединяйся к чату: ${inviteResult.url}`;
+                        try {
+                          if (navigator.share) {
+                            await navigator.share({ title: 'Приглашение в чат', text: 'Присоединяйся к чату: ', url: inviteResult.url });
+                            return;
+                          }
+                        } catch (e) {
+                          if (e.name !== 'AbortError') console.warn('Share failed:', e);
+                        }
+                        try {
+                          await navigator.clipboard.writeText(shareText);
+                        } catch (clipErr) {
+                          const textarea = document.createElement('textarea');
+                          textarea.value = shareText;
+                          textarea.style.position = 'fixed';
+                          textarea.style.opacity = '0';
+                          document.body.appendChild(textarea);
+                          textarea.select();
+                          document.execCommand('copy');
+                          document.body.removeChild(textarea);
+                        }
+                      }}
+                      className="w-full rounded-lg bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-600"
+                    >
+                      Поделиться
+                    </button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const shareText = `Присоединяйся к чату: ${inviteResult.url}`;
+                        try {
+                          await navigator.clipboard.writeText(shareText);
+                        } catch (clipErr) {
+                          const textarea = document.createElement('textarea');
+                          textarea.value = shareText;
+                          textarea.style.position = 'fixed';
+                          textarea.style.opacity = '0';
+                          document.body.appendChild(textarea);
+                          textarea.select();
+                          document.execCommand('copy');
+                          document.body.removeChild(textarea);
+                        }
+                        setInviteError('Ссылка скопирована — вставьте её в WhatsApp, Telegram или SMS');
+                        setTimeout(() => setInviteError(''), 4000);
+                      }}
+                      className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
+                    >
+                      Скопировать
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { setInviteModalOpen(false); setInvitePhone(''); setInviteChatId(''); setInviteError(''); setInviteResult(null); }}
+                    className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
+                  >
+                    Готово
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
       )}
 
-      <SettingsDrawer open={settingsDrawerOpen} onClose={() => setSettingsDrawerOpen(false)} user={user} />
+      <SettingsDrawer open={settingsDrawerOpen} onClose={() => setSettingsDrawerOpen(false)} user={user} onUpdateUser={setUser} />
 
       <footer className="px-4 pb-4 text-center text-[11px] text-slate-400 dark:text-slate-500 md:hidden">
         <button type="button" onClick={handleLogout} className="underline">Выйти из аккаунта</button>

@@ -12,6 +12,25 @@ async function getUserFromRequest(req) {
   return payload.userId;
 }
 
+export async function GET(req) {
+  const userId = await getUserFromRequest(req);
+  if (!userId) {
+    return NextResponse.json({ error: 'Не авторизован' }, { status: 401 });
+  }
+
+  try {
+    const subscription = await prisma.pushSubscription.findFirst({
+      where: { userId },
+      select: { endpoint: true },
+    });
+
+    return NextResponse.json({ subscribed: !!subscription });
+  } catch (error) {
+    console.error('Ошибка GET /api/push/subscribe:', error);
+    return NextResponse.json({ error: 'Не удалось проверить подписку' }, { status: 500 });
+  }
+}
+
 export async function POST(req) {
   const userId = await getUserFromRequest(req);
   if (!userId) {

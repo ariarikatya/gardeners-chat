@@ -348,6 +348,110 @@ export default function LoginPage() {
 
   const handleAutoLogin = () => handleAutoLoginWithPhone(savedPhone);
 
+  const handleSavedPhoneLogin = async () => {
+    if (inflightRef.current) return;
+    inflightRef.current = true;
+    setLoading(true);
+    setError('');
+
+    const seq = ++sessionSeqRef.current;
+    const watchdogId = setTimeout(() => {
+      console.warn('[Watchdog 15s] Force resetting login loading state');
+      finishLoading(seq);
+    }, 15000);
+
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem('manual_logout');
+    }
+
+    const isNetworkOffline = typeof window !== 'undefined' && !navigator.onLine;
+
+    if (isNetworkOffline) {
+      clearTimeout(watchdogId);
+      await handleOfflineLogin(savedPhone, seq);
+      return;
+    }
+
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const timeoutId = controller ? setTimeout(() => controller.abort(), 10000) : null;
+
+    try {
+      const res = await Promise.race([
+        fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone: savedPhone }),
+          credentials: 'include',
+          signal: controller ? controller.signal : undefined,
+        }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout 10s')), 10000)),
+      ]);
+
+      if (timeoutId) clearTimeout(timeoutId);
+
+      if (res.status === 503 || res.status >= 500) {
+        console.warn('[Login Error 5xx]', res.status, 'CLIENT_VERSION:', CLIENT_VERSION);
+        clearTimeout(watchdogId);
+        await handleOfflineLogin(savedPhone, seq);
+        return;
+      }
+
+      let data = {};
+      try {
+        data = await res.json();
+      } catch (jsonErr) {
+        clearTimeout(watchdogId);
+        await handleOfflineLogin(savedPhone, seq);
+        return;
+      }
+
+      if (data.passwordRequired) {
+        setPasswordRequired(true);
+        clearTimeout(watchdogId);
+        finishLoading(seq);
+        return;
+      }
+
+      if (!res.ok) {
+        const clientErr = new Error(data.error || 'Ошибка при входе');
+        clientErr.isClientError = true;
+        throw clientErr;
+      }
+
+      const cleanPhone = normalizeCleanPhone(savedPhone);
+      if (cleanPhone) {
+        localStorage.setItem('auth_phone', cleanPhone);
+        Promise.race([notifySwOfflinePhone(cleanPhone), new Promise((r) => setTimeout(r, 1500))]).catch(() => {});
+      }
+      if (data.token) {
+        localStorage.setItem('auth_token', data.token);
+      }
+      if (data.role) {
+        localStorage.setItem('auth_role', data.role);
+        if (cleanPhone) {
+          savePhoneRoleMap(cleanPhone, data.role, data.name || data.userName || null, 'login');
+          await recordIdentityToSw(cleanPhone, data.role, data.name || data.userName || null);
+          await syncPhoneRoleMapToSw();
+        }
+      }
+
+      clearTimeout(watchdogId);
+      redirectByRole(data.role, false, cleanPhone || savedPhone);
+    } catch (err) {
+      clearTimeout(watchdogId);
+      if (timeoutId) clearTimeout(timeoutId);
+      if (err && err.isClientError) {
+        setError(err.message || 'Ошибка при входе');
+        finishLoading(seq);
+      } else {
+        await handleOfflineLogin(savedPhone, seq);
+      }
+    } finally {
+      clearTimeout(watchdogId);
+      finishLoading(seq);
+    }
+  };
+
   const ensureFreshUsersList = async () => {
     if (typeof window === 'undefined' || !navigator.onLine) return;
     try {
@@ -361,6 +465,58 @@ export default function LoginPage() {
   };
 
   useEffect(() => {
+    let cancelled = false;
+
+    const checkSession = async () => {
+      if (typeof window === 'undefined') return;
+      
+      const isLogoutConfirmed = sessionStorage.getItem('manual_logout') === '1';
+      
+      if (isLogoutConfirmed) {
+        sessionStorage.removeItem('manual_logout');
+        localStorage.removeItem('auth_token');
+        localStorage.removeItem('auth_role');
+        notifySwOfflineSession(false, null);
+        return;
+      }
+
+      // If no manual logout, try to restore session via /api/auth/me
+      try {
+        const res = await fetch('/api/auth/me', { credentials: 'include', cache: 'no-store' });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.user) {
+            if (!cancelled) {
+              window.location.replace('/chats');
+            }
+            return;
+          }
+        }
+      } catch (e) {
+        // Ignore errors, fall through to normal login flow
+      }
+
+      // Continue with existing logic for saved phone display
+      const saved = localStorage.getItem('auth_phone');
+      const role = localStorage.getItem('auth_role');
+
+      if (saved) {
+        setSavedPhone(saved);
+        setIsSavedPhoneMode(true);
+      }
+
+      syncPhoneRoleMapToSw();
+
+      const offlineSessionActive = localStorage.getItem('offline_session') === '1';
+
+      if (offlineSessionActive) {
+        localStorage.setItem('offline_session_ts', String(Date.now()));
+        notifySwOfflineSession(true, role);
+      }
+    };
+
+    checkSession();
+
     const handleOnlineCheck = async () => {
       const online = typeof window !== 'undefined' ? navigator.onLine : true;
       setIsOnline(online);
@@ -414,37 +570,8 @@ export default function LoginPage() {
     window.addEventListener('online', updateOnlineStatus);
     window.addEventListener('offline', updateOnlineStatus);
 
-    try {
-      const isLogoutConfirmed = typeof window !== 'undefined' && sessionStorage.getItem('manual_logout') === '1';
-
-      if (isLogoutConfirmed) {
-        sessionStorage.removeItem('manual_logout');
-        localStorage.removeItem('auth_token');
-        localStorage.removeItem('auth_role');
-        notifySwOfflineSession(false, null);
-      }
-
-      const saved = localStorage.getItem('auth_phone');
-      const role = localStorage.getItem('auth_role');
-
-      if (saved) {
-        setSavedPhone(saved);
-        setIsSavedPhoneMode(true);
-      }
-
-      syncPhoneRoleMapToSw();
-
-      const offlineSessionActive = localStorage.getItem('offline_session') === '1';
-
-      if (offlineSessionActive) {
-        localStorage.setItem('offline_session_ts', String(Date.now()));
-        notifySwOfflineSession(true, role);
-      }
-    } catch (e) {
-      // localStorage error fallback
-    }
-
     return () => {
+      cancelled = true;
       window.removeEventListener('online', updateOnlineStatus);
       window.removeEventListener('offline', updateOnlineStatus);
     };
@@ -585,7 +712,7 @@ export default function LoginPage() {
                   if (isOfflineNow) {
                     handleOfflineLogin(savedPhone);
                   } else {
-                    handleAutoLogin();
+                    handleSavedPhoneLogin();
                   }
                 }}
                 disabled={loading}

@@ -6,7 +6,7 @@ import { signToken } from '@/lib/jwt';
 export async function POST(req) {
   try {
     const body = await req.json();
-    const { name, phone, password, inviteToken } = body;
+    const { name, phone, password, inviteToken, avatarDataUrl } = body;
 
     if (!name || !name.trim()) {
       return NextResponse.json({ error: 'Укажите имя' }, { status: 400 });
@@ -14,9 +14,6 @@ export async function POST(req) {
     const normalizedPhone = phone?.replace(/\D/g, '');
     if (!normalizedPhone || normalizedPhone.length < 10) {
       return NextResponse.json({ error: 'Укажите корректный номер телефона' }, { status: 400 });
-    }
-    if (!password || password.length < 6) {
-      return NextResponse.json({ error: 'Пароль должен быть не короче 6 символов' }, { status: 400 });
     }
 
     let chatId = null;
@@ -55,7 +52,8 @@ export async function POST(req) {
       return NextResponse.json({ error: 'Пользователь с таким номером уже существует' }, { status: 409 });
     }
 
-    const passwordHash = hashPassword(password);
+    // If password is empty or not provided, use NOPASS for passwordless login
+    const passwordHash = password && password.length >= 6 ? hashPassword(password) : 'NOPASS';
 
     const user = await prisma.$transaction(async (tx) => {
       const newUser = await tx.user.create({
@@ -64,6 +62,7 @@ export async function POST(req) {
           phone: normalizedPhone,
           passwordHash,
           role: 'CHAT',
+          photo: avatarDataUrl || null,
         },
         select: { id: true, name: true, phone: true, role: true },
       });
