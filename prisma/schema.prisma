@@ -11,6 +11,7 @@ enum Role {
   ADMIN
   GARDENER
   LEADER
+  CHAT
 }
 
 model User {
@@ -360,4 +361,15 @@ model PushClientLog {
 
   @@index([userId])
   @@index([createdAt])
+}
+
+model ChatInvite {
+  id          String    @id @default(uuid())
+  chatId      String
+  phone       String
+  token       String    @unique
+  createdById String
+  expiresAt   DateTime
+  usedAt      DateTime?
+  createdAt   DateTime  @default(now())
 }

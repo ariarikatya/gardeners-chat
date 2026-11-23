@@ -25,6 +25,25 @@ export default function RootLayout({ children }) {
             __html: `window.CLIENT_VERSION = ${JSON.stringify(CLIENT_VERSION)};`,
           }}
         />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  var theme = localStorage.getItem('chat_theme') || 'system';
+                  var root = document.documentElement;
+                  root.classList.remove('dark');
+                  if (theme === 'dark') {
+                    root.classList.add('dark');
+                  } else if (theme === 'system') {
+                    var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+                    if (prefersDark) root.classList.add('dark');
+                  }
+                } catch (e) {}
+              })();
+            `,
+          }}
+        />
         <script src={`/emergency.js?v=${CLIENT_VERSION}`} defer></script>
       </head>
       <body>

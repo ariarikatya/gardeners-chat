@@ -6,6 +6,7 @@ import apiFetch from '@/lib/apiFetch';
 import { compressImage, convertHeicIfNeeded } from '@/lib/imageCompress';
 import { compressChatVideo } from '@/lib/chatVideoCompress';
 import ChatMediaLightbox from '@/components/ChatMediaLightbox';
+import SettingsDrawer from '@/components/SettingsDrawer';
 
 const MAX_TOTAL_FILE_BYTES = 100 * 1024 * 1024;
 const MAX_FILES_PER_MESSAGE = 10;
@@ -14,6 +15,7 @@ const ROLE_LABELS = {
   ADMIN: 'Диспетчер',
   LEADER: 'Руководитель',
   GARDENER: 'Садовник',
+  CHAT: 'Участник',
 };
 
 function formatTime(value) {
@@ -523,6 +525,7 @@ export default function ChatsPage() {
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [newChatOpen, setNewChatOpen] = useState(false);
   const [userSearch, setUserSearch] = useState('');
   const [selectedUserIds, setSelectedUserIds] = useState([]);
@@ -539,6 +542,7 @@ export default function ChatsPage() {
   const [chatPresence, setChatPresence] = useState({});
   const [chatSettings, setChatSettings] = useState(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsDrawerOpen, setSettingsDrawerOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [recordingAudio, setRecordingAudio] = useState(false);
@@ -577,6 +581,9 @@ export default function ChatsPage() {
   const [showAddParticipant, setShowAddParticipant] = useState(false);
   const [participantSearch, setParticipantSearch] = useState('');
   const [participantUsers, setParticipantUsers] = useState([]);
+  const [invitePhone, setInvitePhone] = useState('');
+  const [inviteModalOpen, setInviteModalOpen] = useState(false);
+  const [creatingInvite, setCreatingInvite] = useState(false);
   const [editingMessageId, setEditingMessageId] = useState('');
   const [editDraft, setEditDraft] = useState('');
   const [savingEdit, setSavingEdit] = useState(false);
@@ -1150,6 +1157,54 @@ useEffect(() => {
     }
   };
 
+  const createInvite = async () => {
+    const phone = invitePhone.replace(/\D/g, '');
+    if (!phone) {
+      setError('Введите номер телефона');
+      return;
+    }
+    if (!activeChatId) return;
+    try {
+      setCreatingInvite(true);
+      setError('');
+      const data = await requestJson(`/api/chats/${encodeURIComponent(activeChatId)}/invites`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone }),
+      });
+      if (data.addedExisting) {
+        setInviteModalOpen(false);
+        setInvitePhone('');
+        await loadChats();
+        setSuccess('Пользователь уже был в системе и добавлен в чат');
+        return;
+      }
+      const { url } = data;
+      const shareText = `Присоединяйся к чату: ${url}`;
+      let shared = false;
+      if (navigator.share) {
+        try {
+          await navigator.share({ title: 'Приглашение в чат', text: 'Присоединяйся к чату: ', url });
+          shared = true;
+        } catch (shareError) {
+          if (shareError.name !== 'AbortError') {
+            console.warn('Share failed:', shareError);
+          }
+        }
+      }
+      if (!shared) {
+        await navigator.clipboard.writeText(shareText);
+        setSuccess('Ссылка скопирована — вставьте в WhatsApp, Telegram или SMS');
+      }
+      setInviteModalOpen(false);
+      setInvitePhone('');
+    } catch (requestError) {
+      setError(requestError.message || 'Не удалось создать приглашение');
+    } finally {
+      setCreatingInvite(false);
+    }
+  };
+
   const saveEditedMessage = async (event, message) => {
     event.preventDefault();
     if (savingEdit) return;
@@ -1607,22 +1662,27 @@ const closeChat = () => {
       <header className="shrink-0 bg-emerald-900 px-4 py-3 text-white shadow">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
-            {activeChatId && (
-              <button type="button" onClick={closeChat} className="rounded-lg bg-emerald-800 px-3 py-2 text-sm hover:bg-emerald-700">
-                ← <span className="hidden sm:inline">Чаты</span>
-              </button>
-            )}
             <div className="min-w-0">
               <h1 className="text-lg font-bold">Чаты</h1>
               <p className="truncate text-xs text-emerald-100">{user?.name || 'Переписка сотрудников'}</p>
             </div>
           </div>
-          <button type="button" onClick={handleLogout} className="shrink-0 rounded-lg bg-emerald-800 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700">
-            Выйти
-          </button>
-          <button type="button" onClick={() => { setError(''); setNewChatOpen(true); }} className="shrink-0 rounded-lg bg-white px-3 py-2 text-sm font-semibold text-emerald-900 hover:bg-emerald-50">
-            + Новый чат
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setSettingsDrawerOpen(true)}
+              className="rounded-lg p-2 text-slate-200 hover:bg-emerald-800 hover:text-white transition-colors"
+              aria-label="Настройки"
+            >
+              <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              </svg>
+            </button>
+            <button type="button" onClick={() => { setError(''); setNewChatOpen(true); }} className="shrink-0 rounded-lg bg-white px-3 py-2 text-sm font-semibold text-emerald-900 hover:bg-emerald-50">
+              + Новый чат
+            </button>
+          </div>
         </div>
       </header>
 
@@ -1631,6 +1691,14 @@ const closeChat = () => {
           <div className="flex items-center justify-between gap-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
             <span>{error}</span>
             <button type="button" onClick={() => setError('')} aria-label="Закрыть сообщение об ошибке">×</button>
+          </div>
+        </div>
+      )}
+      {success && (
+        <div role="status" className="mx-auto mt-3 max-w-7xl shrink-0 px-3">
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+            <span>{success}</span>
+            <button type="button" onClick={() => setSuccess('')} aria-label="Закрыть">×</button>
           </div>
         </div>
       )}
@@ -1719,8 +1787,9 @@ const closeChat = () => {
                 <div className="flex min-w-0 items-center gap-3">
                   <button
                     type="button"
-                    onClick={activeChat.isGroup ? () => openParticipants(activeChat.id) : () => openProfile(activeChat.id)}
-                    className="flex min-w-0 items-center gap-3 text-left"
+                    onClick={closeChat}
+                    className="flex min-w-0 items-center gap-3 text-left hover:bg-slate-50 rounded-lg p-1 -m-1"
+                    aria-label="Вернуться к списку чатов"
                   >
                     <span className="relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-emerald-100 text-sm font-bold text-emerald-800">
                       {activeChatRecipient?.photo ? (
@@ -1744,6 +1813,9 @@ const closeChat = () => {
                         <div className="space-y-1">
                           <button type="button" onClick={() => { setSearchOpen(true); setMessageSearch(''); setSettingsOpen(false); }} className="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left hover:bg-slate-50">
                             <span>Найти</span><span aria-hidden="true" className="text-slate-400">⌕</span>
+                          </button>
+                          <button type="button" onClick={() => { setSettingsOpen(false); setInviteModalOpen(true); setInvitePhone(''); }} className="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left hover:bg-slate-50">
+                            <span>Пригласить по номеру</span><span aria-hidden="true" className="text-slate-400">›</span>
                           </button>
                           <button type="button" onClick={() => openParticipants(activeChat.id)} className="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left hover:bg-slate-50">
                             <span>Участники</span><span aria-hidden="true" className="text-slate-400">›</span>
@@ -2470,6 +2542,38 @@ const closeChat = () => {
           </div>
         </div>
       )}
+
+      {inviteModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-3" role="dialog" aria-modal="true" aria-labelledby="invite-title" onClick={() => { setInviteModalOpen(false); setInvitePhone(''); }}>
+          <div className="w-full max-w-sm flex flex-col overflow-hidden rounded-2xl bg-white shadow-xl" onClick={(event) => event.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+              <h2 id="invite-title" className="font-bold">Пригласить по номеру</h2>
+              <button type="button" onClick={() => { setInviteModalOpen(false); setInvitePhone(''); }} className="rounded-lg px-3 py-1 text-xl text-slate-500 hover:bg-slate-100" aria-label="Закрыть">×</button>
+            </div>
+            <div className="p-4 space-y-4">
+              <p className="text-sm text-slate-600">Введите номер телефона, на который придёт ссылка-приглашение в этот чат.</p>
+              <input
+                type="tel"
+                value={invitePhone}
+                onChange={(e) => setInvitePhone(e.target.value.replace(/\D/g, '').slice(0, 11))}
+                placeholder="7 XXX XXX XX XX"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                autoFocus
+              />
+              <button
+                type="button"
+                onClick={createInvite}
+                disabled={creatingInvite || !invitePhone.replace(/\D/g, '').length}
+                className="w-full rounded-lg bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {creatingInvite ? 'Создаём…' : 'Создать приглашение'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <SettingsDrawer open={settingsDrawerOpen} onClose={() => setSettingsDrawerOpen(false)} user={user} />
 
       <footer className="px-4 pb-4 text-center text-[11px] text-slate-400 md:hidden">
         <button type="button" onClick={handleLogout} className="underline">Выйти из аккаунта</button>
