@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import apiFetch from '@/lib/apiFetch';
+import { normalizePhoneDigits, phoneContains, formatPhoneFull, maskPhone } from '@/lib/phone';
 import { compressImage, convertHeicIfNeeded } from '@/lib/imageCompress';
 import { compressChatVideo } from '@/lib/chatVideoCompress';
 import ChatMediaLightbox from '@/components/ChatMediaLightbox';
@@ -109,32 +110,12 @@ function formatLastSeen(lastActive) {
 
 function formatPhoneForList(phone, hidePhone) {
   if (!phone) return '';
-  const digits = phone.replace(/\D/g, '');
-  if (hidePhone) {
-    if (digits.length >= 3) {
-      return `+${digits.slice(0, 2)} ${digits.slice(2, 3)}***`;
-    }
-    return phone;
-  }
-  if (digits.length === 11) {
-    return `+${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4, 7)}-${digits.slice(7, 9)}-${digits.slice(9, 11)}`;
-  }
-  return phone;
+  return hidePhone ? maskPhone(phone) : formatPhoneFull(phone);
 }
 
 function formatPhone(phone, hidePhone) {
   if (!phone) return '';
-  const digits = phone.replace(/\D/g, '');
-  if (hidePhone) {
-    if (digits.length >= 3) {
-      return `+${digits.slice(0, 2)} ***`;
-    }
-    return phone;
-  }
-  if (digits.length === 11) {
-    return `+${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4, 7)}-${digits.slice(7, 9)}-${digits.slice(9, 11)}`;
-  }
-  return phone;
+  return hidePhone ? maskPhone(phone) : formatPhoneFull(phone);
 }
 
 function readStoredChatContacts() {
@@ -143,7 +124,7 @@ function readStoredChatContacts() {
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed.map((value) => String(value).replace(/\D/g, '')).filter(Boolean);
+    return parsed.map((value) => normalizePhoneDigits(value)).filter(Boolean);
   } catch (error) {
     return [];
   }
@@ -156,7 +137,7 @@ function storeChatContacts(contacts) {
       const telList = contact?.tel || contact?.['tel'] || [];
       const values = Array.isArray(telList) ? telList : [telList];
       values.forEach((value) => {
-        const digits = String(value || '').replace(/\D/g, '');
+        const digits = normalizePhoneDigits(value);
         if (digits) phones.push(digits);
       });
     });
@@ -655,7 +636,7 @@ export default function ChatsPage() {
       const title = chatTitle(chat, user?.id).toLowerCase();
       const groupNameMatch = chat.name?.toLowerCase().includes(query) ?? false;
       const titleMatch = title.includes(query);
-      const phoneMatch = queryDigits && chat.participants?.some((p) => p.phone?.replace(/\D/g, '').includes(queryDigits));
+      const phoneMatch = query && chat.participants?.some((p) => phoneContains(normalizePhoneDigits(p.phone), query));
       return titleMatch || groupNameMatch || phoneMatch;
     });
   }, [chats, chatSearch, user?.id]);
@@ -1311,7 +1292,7 @@ useEffect(() => {
   };
 
   const createInvite = async () => {
-    const phone = invitePhone.replace(/\D/g, '');
+    const phone = normalizePhoneDigits(invitePhone);
     if (!phone) {
       setInviteError('Введите номер телефона');
       return;
@@ -2765,7 +2746,7 @@ const closeChat = () => {
                     <input
                       type="tel"
                       value={invitePhone}
-                      onChange={(e) => setInvitePhone(e.target.value.replace(/\D/g, '').slice(0, 11))}
+                      onChange={(e) => setInvitePhone(e.target.value.replace(/\D/g, ''))}
                       placeholder="7 XXX XXX XX XX"
                       className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
                       autoFocus

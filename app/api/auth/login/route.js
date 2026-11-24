@@ -3,20 +3,13 @@ import prisma from '@/lib/prisma';
 import { signToken } from '@/lib/jwt';
 import { verifyPassword } from '@/lib/password';
 import { hasActiveSessionForUser } from '@/lib/authSession';
+import { normalizePhoneDigits } from '@/lib/phone';
 
 function isRequestSecure(req) {
   if (process.env.NODE_ENV !== 'production') return false;
   if (process.env.DISABLE_SECURE_COOKIES === 'true') return false;
   const proto = req.headers.get('x-forwarded-proto') || req.nextUrl?.protocol || '';
   return proto.includes('https');
-}
-
-function getPhoneSearchVariants(rawPhone) {
-  const digits = String(rawPhone || '').replace(/\D/g, '').trim();
-  if (!digits) return [];
-  if (digits.length < 10) return [digits];
-  const tail10 = digits.slice(-10);
-  return Array.from(new Set([digits, '7' + tail10, '8' + tail10, tail10]));
 }
 
 export async function POST(req) {
@@ -26,11 +19,14 @@ export async function POST(req) {
       return NextResponse.json({ error: 'Введите номер телефона' }, { status: 400 });
     }
 
-    const variants = getPhoneSearchVariants(phone);
+    const digits = normalizePhoneDigits(phone);
+    if (!digits) {
+      return NextResponse.json({ error: 'Введите номер телефона' }, { status: 400 });
+    }
 
     const user = await prisma.user.findFirst({
       where: {
-        phone: { in: variants },
+        phone: digits,
       },
     });
 

@@ -2,12 +2,20 @@
 
 import { useEffect, useRef, useState } from 'react';
 import apiFetch from '@/lib/apiFetch';
+import { normalizePhoneDigits } from '@/lib/phone';
 
 const CLIENT_VERSION = typeof window !== 'undefined' ? window.CLIENT_VERSION : 'v1.0.0-chat';
 
 export default function SettingsDrawer({ open, onClose, user, onUpdateUser }) {
   const [toast, setToast] = useState('');
   const toastTimerRef = useRef(null);
+  const [savedToast, setSavedToast] = useState(false);
+  const savedToastTimer = useRef(null);
+  const showSavedToast = () => {
+    setSavedToast(true);
+    if (savedToastTimer.current) clearTimeout(savedToastTimer.current);
+    savedToastTimer.current = setTimeout(() => setSavedToast(false), 3000);
+  };
   const [activeSection, setActiveSection] = useState('profile');
   const [profileData, setProfileData] = useState({ name: '', phone: '' });
   const [passwordData, setPasswordData] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
@@ -88,7 +96,7 @@ export default function SettingsDrawer({ open, onClose, user, onUpdateUser }) {
     try {
       const body = {
         name: profileData.name.trim(),
-        phone: profileData.phone.replace(/\D/g, ''),
+        phone: normalizePhoneDigits(profileData.phone),
         hidePhone,
       };
       if (passwordData.currentPassword || passwordData.newPassword || passwordData.confirmPassword) {
@@ -114,11 +122,7 @@ export default function SettingsDrawer({ open, onClose, user, onUpdateUser }) {
       setProfileData({ name: data.user.name, phone: data.user.phone });
       setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
       if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = 0;
-      setToast('Сохранено');
-      toastTimerRef.current = window.setTimeout(() => {
-        setToast('');
-        toastTimerRef.current = null;
-      }, 3000);
+      showSavedToast();
       if (onUpdateUser) onUpdateUser(data.user);
     } catch (err) {
       setError(err.message || 'Ошибка при сохранении');
@@ -353,7 +357,7 @@ export default function SettingsDrawer({ open, onClose, user, onUpdateUser }) {
                 <input
                   type="tel"
                   value={profileData.phone}
-                  onChange={(e) => setProfileData({ ...profileData, phone: e.target.value.replace(/\D/g, '').slice(0, 11) })}
+                  onChange={(e) => setProfileData({ ...profileData, phone: e.target.value.replace(/\D/g, '') })}
                   className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-800 dark:text-slate-100 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
                 />
               </div>
@@ -551,6 +555,11 @@ export default function SettingsDrawer({ open, onClose, user, onUpdateUser }) {
         <div role="status" className="fixed bottom-6 left-1/2 z-[310] -translate-x-1/2 flex items-center gap-2 rounded-full bg-slate-900/95 px-4 py-2 text-sm font-medium text-white shadow-lg dark:bg-slate-800/95">
           <svg aria-hidden="true" viewBox="0 0 20 20" className="h-4 w-4 text-emerald-400" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m4 10.5 4 4 8-9" /></svg>
           <span>{toast}</span>
+        </div>
+      )}
+      {savedToast && (
+        <div className="fixed bottom-6 left-1/2 z-[300] -translate-x-1/2 rounded-full bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-lg">
+          ✓ Сохранено
         </div>
       )}
     </div>

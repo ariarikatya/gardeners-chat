@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { normalizePhoneDigits } from '@/lib/phone';
 
 export async function GET() {
   try {
@@ -23,7 +24,7 @@ export async function GET() {
 
     dbUsers.forEach((u) => {
       if (!u.phone) return;
-      const digits = String(u.phone).replace(/\D/g, '');
+      const digits = normalizePhoneDigits(u.phone);
       formattedList.push({
         phone: digits || u.phone,
         role: u.role,
@@ -33,7 +34,7 @@ export async function GET() {
 
     dbGardeners.forEach((g) => {
       if (!g.phone) return;
-      const digits = String(g.phone).replace(/\D/g, '');
+      const digits = normalizePhoneDigits(g.phone);
       const phoneVal = digits || g.phone;
       const exists = formattedList.some(item => item.phone === phoneVal && item.role === 'GARDENER');
       if (!exists) {

@@ -3,6 +3,7 @@ import prisma from '@/lib/prisma';
 import { verifyToken } from '@/lib/jwt';
 import { randomUUID } from 'crypto';
 import { findOrCreateDirectChat } from '@/lib/directChat';
+import { normalizePhoneDigits } from '@/lib/phone';
 
 async function getUserFromRequest(req) {
   const token = req.cookies.get('token')?.value;
@@ -20,7 +21,7 @@ export async function POST(req) {
 
   try {
     const body = await req.json();
-    const phone = typeof body.phone === 'string' ? body.phone.replace(/\D/g, '') : '';
+    const phone = normalizePhoneDigits(typeof body.phone === 'string' ? body.phone : '');
     if (!phone) return NextResponse.json({ error: 'Укажите номер телефона' }, { status: 400 });
 
     const existingUser = await prisma.user.findUnique({

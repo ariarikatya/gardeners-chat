@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { verifyToken } from '@/lib/jwt';
 import { hashPassword, verifyPassword } from '@/lib/password';
+import { normalizePhoneDigits } from '@/lib/phone';
 
 async function getUserFromRequest(req) {
   const authHeader = req.headers.get('authorization');
@@ -50,7 +51,7 @@ export async function PATCH(req) {
     const updateData = {};
     if (typeof name === 'string' && name.trim()) updateData.name = name.trim();
     if (typeof phone === 'string') {
-      const normalizedPhone = phone.replace(/\D/g, '');
+      const normalizedPhone = normalizePhoneDigits(phone);
       if (normalizedPhone) updateData.phone = normalizedPhone;
     }
     if (typeof hidePhone === 'boolean') updateData.hidePhone = hidePhone;

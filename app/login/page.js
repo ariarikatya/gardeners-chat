@@ -5,8 +5,6 @@ import { CLIENT_VERSION } from '@/lib/pwa-env';
 import {
   activateOfflineSession,
   resolveOfflineRoleFromCaches,
-  getPhoneVariants,
-  normalizeCleanPhone,
   savePhoneRoleMap,
   recordIdentityToSw,
   notifySwOfflinePhone,
@@ -15,6 +13,8 @@ import {
   requestStoragePersistence,
   touchOfflineSession,
 } from '@/lib/offlineStore';
+
+import { normalizePhoneDigits } from '@/lib/phone';
 
 import React from 'react';
 
@@ -83,15 +83,13 @@ export default function LoginPage() {
       const mapStr = localStorage.getItem('phone_roles_map');
       if (!mapStr) return null;
       const map = JSON.parse(mapStr);
-      const variants = getPhoneVariants(phoneNum);
-      for (const k of variants) {
-        const val = map[k];
-        if (!val) continue;
-        if (typeof val === 'string') return { role: val, roles: [val], lastUsedRole: val };
-        if (typeof val === 'object' && val) {
-          const roleVal = val.role || val.lastUsedRole;
-          return { role: roleVal, roles: [roleVal], lastUsedRole: roleVal, name: val.name || null };
-        }
+      const digits = normalizePhoneDigits(phoneNum);
+      const val = map[digits];
+      if (!val) return null;
+      if (typeof val === 'string') return { role: val, roles: [val], lastUsedRole: val };
+      if (typeof val === 'object' && val) {
+        const roleVal = val.role || val.lastUsedRole;
+        return { role: roleVal, roles: [roleVal], lastUsedRole: roleVal, name: val.name || null };
       }
       return null;
     } catch (e) {
@@ -185,7 +183,7 @@ export default function LoginPage() {
 
       const storedPhone = typeof window !== 'undefined' ? localStorage.getItem('auth_phone') : null;
       const rawInputPhone = targetPhone || phone || savedPhone || storedPhone || '';
-      const cleanPhone = normalizeCleanPhone(rawInputPhone);
+      const cleanPhone = normalizePhoneDigits(rawInputPhone);
 
       let resolvedRole = null;
       for (let attempt = 0; attempt < 2; attempt++) {
@@ -292,7 +290,7 @@ export default function LoginPage() {
       }
 
       if (data.requiresPassword) {
-        setPhone(normalizeCleanPhone(phoneToUse) || phoneToUse);
+        setPhone(normalizePhoneDigits(phoneToUse) || phoneToUse);
         setPassword('');
         setPasswordRequired(true);
         setIsSavedPhoneMode(false);
@@ -306,7 +304,7 @@ export default function LoginPage() {
         throw clientErr;
       }
 
-      const cleanPhone = normalizeCleanPhone(phoneToUse);
+      const cleanPhone = normalizePhoneDigits(phoneToUse);
       if (cleanPhone) {
         localStorage.setItem('auth_phone', cleanPhone);
         Promise.race([notifySwOfflinePhone(cleanPhone), new Promise((r) => setTimeout(r, 1500))]).catch(() => {});
@@ -418,7 +416,7 @@ export default function LoginPage() {
         throw clientErr;
       }
 
-      const cleanPhone = normalizeCleanPhone(savedPhone);
+      const cleanPhone = normalizePhoneDigits(savedPhone);
       if (cleanPhone) {
         localStorage.setItem('auth_phone', cleanPhone);
         Promise.race([notifySwOfflinePhone(cleanPhone), new Promise((r) => setTimeout(r, 1500))]).catch(() => {});
@@ -595,7 +593,7 @@ export default function LoginPage() {
       sessionStorage.removeItem('manual_logout');
     }
 
-    const cleanPhone = normalizeCleanPhone(phone);
+    const cleanPhone = normalizePhoneDigits(phone);
     const isNetworkOffline = typeof window !== 'undefined' && !navigator.onLine;
 
     if (isNetworkOffline) {

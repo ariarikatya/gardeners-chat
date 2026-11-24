@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { requireChatUser } from '@/lib/chatAuth';
 import { randomUUID } from 'crypto';
+import { normalizePhoneDigits } from '@/lib/phone';
 
 export async function POST(req, { params }) {
   const auth = await requireChatUser(req);
@@ -9,7 +10,7 @@ export async function POST(req, { params }) {
 
   try {
     const body = await req.json();
-    const phone = typeof body.phone === 'string' ? body.phone.replace(/\D/g, '') : '';
+    const phone = normalizePhoneDigits(typeof body.phone === 'string' ? body.phone : '');
     if (!phone) return NextResponse.json({ error: 'Укажите номер телефона' }, { status: 400 });
 
     const membership = await prisma.chatParticipant.findUnique({

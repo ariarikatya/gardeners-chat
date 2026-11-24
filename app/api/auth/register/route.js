@@ -3,6 +3,7 @@ import prisma from '@/lib/prisma';
 import { hashPassword } from '@/lib/password';
 import { signToken } from '@/lib/jwt';
 import { findOrCreateDirectChat } from '@/lib/directChat';
+import { normalizePhoneDigits } from '@/lib/phone';
 
 export async function POST(req) {
   try {
@@ -12,8 +13,8 @@ export async function POST(req) {
     if (!name || !name.trim()) {
       return NextResponse.json({ error: 'Укажите имя' }, { status: 400 });
     }
-    const normalizedPhone = phone?.replace(/\D/g, '');
-    if (!normalizedPhone || normalizedPhone.length < 10) {
+    const normalizedPhone = normalizePhoneDigits(phone);
+    if (!normalizedPhone) {
       return NextResponse.json({ error: 'Укажите корректный номер телефона' }, { status: 400 });
     }
 
