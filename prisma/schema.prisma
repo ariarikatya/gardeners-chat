@@ -15,6 +15,7 @@ enum Role {
 }
 
 model User {
+  photo String?
   id                   String    @id @default(uuid())
   phone                String    @unique
   name                 String
