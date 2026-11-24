@@ -57,11 +57,11 @@ export async function POST(request) {
       },
     });
 
-    const chatId = await findOrCreateDirectChat(null, invite.createdById, user.id);
+    const chat = await findOrCreateDirectChat(invite.createdById, user.id);
 
     await prisma.chatInvite.update({
       where: { token: inviteToken },
-      data: { usedAt: new Date(), chatId },
+      data: { usedAt: new Date(), chatId: chat.id },
     });
 
     const token = await signToken({
@@ -71,7 +71,7 @@ export async function POST(request) {
       gardenerId: user.gardenerId,
     });
 
-    const response = NextResponse.json({ ok: true, chatId });
+    const response = NextResponse.json({ ok: true, chatId: chat.id });
     response.cookies.set('token', token, {
       httpOnly: true,
       secure: isRequestSecure(req),

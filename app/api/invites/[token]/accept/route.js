@@ -53,17 +53,16 @@ export async function POST(req, { params }) {
       return NextResponse.json({ error: 'Приглашение предназначено для другого номера' }, { status: 403 });
     }
 
-    let chatId;
+    const chat = await findOrCreateDirectChat(invite.createdById, userId);
     await prisma.$transaction(async (tx) => {
-      chatId = await findOrCreateDirectChat(tx, invite.createdById, userId);
       await tx.chatInvite.update({
         where: { token },
-        data: { usedAt: new Date(), chatId },
+        data: { usedAt: new Date(), chatId: chat.id },
       });
-      await tx.chat.update({ where: { id: chatId }, data: { updatedAt: new Date() } });
+      await tx.chat.update({ where: { id: chat.id }, data: { updatedAt: new Date() } });
     });
 
-    return NextResponse.json({ chatId });
+    return NextResponse.json({ chatId: chat.id });
   } catch (error) {
     console.error('Ошибка POST /api/invites/[token]/accept:', error);
     return NextResponse.json({ error: 'Не удалось принять приглашение' }, { status: 500 });

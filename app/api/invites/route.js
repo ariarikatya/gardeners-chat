@@ -30,8 +30,8 @@ export async function POST(req) {
     });
 
     if (existingUser) {
-      const chatId = await findOrCreateDirectChat(prisma, userId, existingUser.id);
-      return NextResponse.json({ existing: true, chatId });
+      const chat = await findOrCreateDirectChat(userId, existingUser.id);
+      return NextResponse.json({ existing: true, chatId: chat.id });
     }
 
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
