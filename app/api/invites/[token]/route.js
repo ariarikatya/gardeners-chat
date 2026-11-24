@@ -1,33 +1,24 @@
 import { NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 
-export async function GET(req, { params }) {
-  const { token } = params;
-
+export async function GET(request, { params }) {
   try {
-    const invite = await prisma.chatInvite.findUnique({
-      where: { token },
-      include: {
-        createdBy: { select: { name: true } },
-      },
-    });
-
-    if (!invite) {
-      return NextResponse.json({ error: 'Приглашение не найдено' }, { status: 404 });
+    const token = params?.token || '';
+    const invite = await prisma.chatInvite.findUnique({ where: { token } });
+    if (!invite || invite.usedAt || invite.expiresAt.getTime() < Date.now()) {
+      return NextResponse.json({ error: 'not_found' }, { status: 404 });
     }
-
-    const now = new Date();
-    const expired = invite.expiresAt < now;
-    const used = Boolean(invite.usedAt);
-
-    return NextResponse.json({
-      inviterName: invite.createdBy.name,
-      phone: invite.phone,
-      expired,
-      used,
+    const inviter = await prisma.user.findUnique({
+      where: { id: invite.createdById },
+      select: { name: true, phone: true },
     });
-  } catch (error) {
-    console.error('Ошибка GET /api/invites/[token]:', error);
-    return NextResponse.json({ error: 'Не удалось получить приглашение' }, { status: 500 });
+    return NextResponse.json({
+      inviterName: inviter?.name || 'Пользователь',
+      phone: invite.phone,
+      expired: false,
+      used: false,
+    });
+  } catch (e) {
+    return NextResponse.json({ error: String((e && e.message) || e) }, { status: 500 });
   }
 }

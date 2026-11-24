@@ -24,9 +24,20 @@ export default function InvitePage({ params }) {
     async function loadInvite() {
       try {
         setLoading(true);
-        const data = await apiFetch(`/api/invites/${token}`, { bypassOfflineCache: true, cache: 'no-store' });
+        setError('');
+        const res = await fetch(`/api/invites/${token}`, { cache: 'no-store' });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          if (res.status === 404) {
+            setError('Приглашение недействительно');
+          } else {
+            setError(data.error || `Ошибка ${res.status}`);
+          }
+          if (!cancelled) setLoading(false);
+          return;
+        }
+        const data = await res.json();
         if (cancelled) return;
-        if (!data.ok) throw new Error(data.error || 'Не удалось загрузить приглашение');
         setInvite(data);
       } catch (err) {
         if (!cancelled) setError(err.message || 'Приглашение не найдено');

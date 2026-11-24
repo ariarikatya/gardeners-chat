@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 import { verifyToken } from '@/lib/jwt';
 import { randomUUID } from 'crypto';
 import { findOrCreateDirectChat } from '@/lib/directChat';
@@ -46,9 +46,7 @@ export async function POST(req) {
       },
     });
 
-    const origin = req.headers.get('origin') || process.env.NEXT_PUBLIC_APP_URL || '';
-    const url = `${origin}/invite/${token}`;
-    return NextResponse.json({ token, url });
+    return NextResponse.json({ token });
   } catch (error) {
     console.error('Ошибка POST /api/invites:', error);
     return NextResponse.json({ error: 'Не удалось создать приглашение' }, { status: 500 });

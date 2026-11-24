@@ -1314,7 +1314,8 @@ useEffect(() => {
         setSuccess('Личный чат открыт');
         return;
       }
-      setInviteResult({ url: data.url, phone });
+      const url = `${window.location.origin}/invite/${data.token}`;
+      setInviteResult({ url, phone });
     } catch (requestError) {
       setInviteError(requestError.message || 'Не удалось создать приглашение');
     } finally {

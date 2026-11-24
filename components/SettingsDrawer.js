@@ -14,7 +14,7 @@ export default function SettingsDrawer({ open, onClose, user, onUpdateUser }) {
   const showSavedToast = () => {
     setSavedToast(true);
     if (savedToastTimer.current) clearTimeout(savedToastTimer.current);
-    savedToastTimer.current = setTimeout(() => setSavedToast(false), 3000);
+    savedToastTimer.current = setTimeout(() => setSavedToast(false), 5000);
   };
   const [activeSection, setActiveSection] = useState('profile');
   const [profileData, setProfileData] = useState({ name: '', phone: '' });
@@ -558,7 +558,7 @@ export default function SettingsDrawer({ open, onClose, user, onUpdateUser }) {
         </div>
       )}
       {savedToast && (
-        <div className="fixed bottom-6 left-1/2 z-[300] -translate-x-1/2 rounded-full bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-lg">
+        <div className="fixed top-6 left-1/2 z-[300] -translate-x-1/2 rounded-full bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-lg">
           ✓ Сохранено
         </div>
       )}
