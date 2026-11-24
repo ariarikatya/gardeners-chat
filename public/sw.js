@@ -25,20 +25,35 @@ self.addEventListener('fetch', (e) => {
 });
 
 self.addEventListener('push', (e) => {
-  if (!e.data) return;
-  const data = e.data.json();
-  const title = data.title || 'Уведомление';
-  const body = data.body || '';
-  const tag = data.tag || 'chat-notification';
-  const url = data.url || '/chats';
+  let data = {};
+  try {
+    data = e.data ? e.data.json() : {};
+  } catch (err) {
+    data = { title: 'Новое сообщение', body: '' };
+  }
+  const title = data.title || 'Новое сообщение';
   e.waitUntil(
-    self.registration.showNotification(title, { body, tag, data: { url } })
+    self.registration.showNotification(title, {
+      body: data.body || '',
+      tag: data.tag || 'chat',
+      icon: '/icon-192.png',
+      data: { url: data.url || '/chats' },
+    })
   );
 });
 
 self.addEventListener('notificationclick', (e) => {
   e.notification.close();
-  const url = e.notification.data?.url || '/chats';
-  e.waitUntil(clients.openWindow(url));
-});
+  const url = (e.notification.data && e.notification.data.url) || '/chats';
+  e.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+      for (const client of list) {
+        if ('focus' in client) {
+          client.navigate(url);
+          return client.focus();
+        }
+      }
+      return clients.openWindow(url);
+    })
+  );
 });
