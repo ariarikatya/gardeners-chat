@@ -16,6 +16,8 @@ export default function InvitePage({ params }) {
   const [formData, setFormData] = useState({ name: '', phone: '', password: '', confirmPassword: '' });
   const [avatarFile, setAvatarFile] = useState(null);
   const [avatarPreview, setAvatarPreview] = useState(null);
+  const [avatarDataUrl, setAvatarDataUrl] = useState(null);
+
   const [submitting, setSubmitting] = useState(false);
   const [user, setUser] = useState(null);
 
@@ -101,21 +103,21 @@ export default function InvitePage({ params }) {
             reader.onload = () => resolve(reader.result);
             reader.readAsDataURL(compressed);
           });
+          setAvatarDataUrl(avatarDataUrl);
         } catch (e) {
           console.warn('Avatar compression failed:', e);
         }
       }
 
-      const data = await apiFetch('/api/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...formData, inviteToken: token, avatarDataUrl }),
-        bypassOfflineCache: true,
-        cache: 'no-store',
-      });
-      if (!data.ok) throw new Error(data.error || 'Не удалось зарегистрироваться');
+      const res = await fetch('/api/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ inviteToken: token, name: formData.name.trim(), phone: (formData.phone || invite?.phone || ''), password: formData.password || '', avatarDataUrl: avatarDataUrl || null }) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error || 'Не удалось зарегистрироваться');
+        return;
+      }
       router.push(`/chats?chat=${data.chatId}`);
       router.refresh();
+
     } catch (err) {
       setError(err.message || 'Ошибка регистрации');
     } finally {

@@ -12,10 +12,18 @@ function isRequestSecure(req) {
   return proto.includes('https');
 }
 
-export async function POST(req) {
+export async function POST(request) {
   try {
-    const body = await req.json();
+    let body = {};
+    const ct = request.headers.get('content-type') || '';
+    if (ct.includes('application/json')) {
+      body = await request.json().catch(() => ({}));
+    } else {
+      const fd = await request.formData().catch(() => null);
+      if (fd) body = { inviteToken: fd.get('inviteToken'), name: fd.get('name'), phone: fd.get('phone'), password: fd.get('password'), avatarDataUrl: fd.get('avatarDataUrl') };
+    }
     const { inviteToken, name, phone, password, avatarDataUrl } = body;
+
 
     const cleanPhone = normalizePhoneDigits(phone);
 
