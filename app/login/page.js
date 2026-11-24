@@ -685,7 +685,7 @@ export default function LoginPage() {
   return (
     <LoginErrorBoundary onReset={() => { setLoading(false); inflightRef.current = false; }}>
       {isSavedPhoneMode && savedPhone ? (
-        <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-950 px-4 py-12 sm:px-6 lg:px-8">
+        <div className="flex min-h-dvh min-h-screen items-center justify-center bg-slate-100 dark:bg-slate-950 px-4 py-12 sm:px-6 lg:px-8">
           <div className="w-full max-w-md space-y-8 bg-white dark:bg-slate-900 p-8 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
             <div>
               <h2 className="mt-6 text-center text-3xl font-extrabold text-emerald-900 dark:text-emerald-300">
@@ -736,7 +736,7 @@ export default function LoginPage() {
           </div>
         </div>
       ) : (
-        <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-950 px-4 py-12 sm:px-6 lg:px-8">
+        <div className="flex min-h-dvh min-h-screen items-center justify-center bg-slate-100 dark:bg-slate-950 px-4 py-12 sm:px-6 lg:px-8">
           <div className="w-full max-w-md space-y-8 bg-white dark:bg-slate-900 p-8 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
             <div>
               <h2 className="mt-6 text-center text-3xl font-extrabold text-emerald-900 dark:text-emerald-300">

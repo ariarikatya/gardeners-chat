@@ -301,7 +301,7 @@ export default function SettingsDrawer({ open, onClose, user, onUpdateUser }) {
   ];
 
   return (
-    <div className="fixed inset-0 z-[300]" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+    <div className="fixed inset-0 z-[500]" role="dialog" aria-modal="true" aria-labelledby="settings-title">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
       <div className="absolute right-0 top-0 bottom-0 w-full max-w-md bg-white dark:bg-slate-900 shadow-xl flex flex-col animate-slide-in">
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-700">
@@ -558,7 +558,7 @@ export default function SettingsDrawer({ open, onClose, user, onUpdateUser }) {
         </div>
       )}
       {savedToast && (
-        <div className="fixed top-6 left-1/2 z-[300] -translate-x-1/2 rounded-full bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-lg">
+        <div className="fixed top-6 left-1/2 z-[500] -translate-x-1/2 rounded-full bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-lg">
           ✓ Сохранено
         </div>
       )}

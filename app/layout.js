@@ -44,6 +44,7 @@ export default function RootLayout({ children }) {
             `,
           }}
         />
+        <meta name="theme-color" content="#020617" />
         <script src={`/emergency.js?v=${CLIENT_VERSION}`} defer></script>
       </head>
       <body>

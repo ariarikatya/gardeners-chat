@@ -87,7 +87,6 @@ export default function InvitePage({ params }) {
     if (submitting) return;
     if (!formData.name.trim()) { setError('Введите имя'); return; }
     if (formData.password && formData.password.length < 6) { setError('Пароль должен быть не короче 6 символов'); return; }
-    if (formData.password !== formData.confirmPassword) { setError('Пароли не совпадают'); return; }
 
     try {
       setSubmitting(true);
@@ -130,7 +129,7 @@ export default function InvitePage({ params }) {
 
   if (loading) {
     return (
-      <div className="flex h-[100dvh] items-center justify-center bg-slate-50 dark:bg-slate-950">
+      <div className="flex h-[100dvh] items-center justify-center bg-slate-100 dark:bg-slate-950">
         <div className="animate-spin rounded-full h-8 w-8 border-4 border-emerald-600 border-t-transparent" />
       </div>
     );
@@ -138,7 +137,7 @@ export default function InvitePage({ params }) {
 
   if (error && !invite) {
     return (
-      <div className="flex h-[100dvh] items-center justify-center bg-slate-50 dark:bg-slate-950 px-4">
+      <div className="flex h-[100dvh] items-center justify-center bg-slate-100 dark:bg-slate-950 px-4">
         <div className="text-center max-w-md">
           <svg viewBox="0 0 24 24" className="mx-auto h-16 w-16 text-rose-500" fill="none" stroke="currentColor" strokeWidth="1.5">
             <circle cx="12" cy="12" r="10" />
@@ -154,7 +153,7 @@ export default function InvitePage({ params }) {
 
   if (invite?.expired || invite?.used) {
     return (
-      <div className="flex h-[100dvh] items-center justify-center bg-slate-50 dark:bg-slate-950 px-4">
+      <div className="flex h-[100dvh] items-center justify-center bg-slate-100 dark:bg-slate-950 px-4">
         <div className="text-center max-w-md">
           <svg viewBox="0 0 24 24" className="mx-auto h-16 w-16 text-amber-500" fill="none" stroke="currentColor" strokeWidth="1.5">
             <circle cx="12" cy="12" r="10" />
@@ -172,7 +171,7 @@ export default function InvitePage({ params }) {
 
   if (user && user.phone !== invite.phone && !['ADMIN', 'LEADER'].includes(user.role)) {
     return (
-      <div className="flex h-[100dvh] items-center justify-center bg-slate-50 dark:bg-slate-950 px-4">
+      <div className="flex h-[100dvh] items-center justify-center bg-slate-100 dark:bg-slate-950 px-4">
         <div className="text-center max-w-md">
           <svg viewBox="0 0 24 24" className="mx-auto h-16 w-16 text-amber-500" fill="none" stroke="currentColor" strokeWidth="1.5">
             <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
@@ -189,7 +188,7 @@ export default function InvitePage({ params }) {
 
   if (user && (user.phone === invite.phone || ['ADMIN', 'LEADER'].includes(user.role))) {
     return (
-      <div className="flex h-[100dvh] items-center justify-center bg-slate-50 dark:bg-slate-950 px-4">
+      <div className="flex h-[100dvh] items-center justify-center bg-slate-100 dark:bg-slate-950 px-4">
         <div className="text-center max-w-md">
           <svg viewBox="0 0 24 24" className="mx-auto h-16 w-16 text-emerald-500" fill="none" stroke="currentColor" strokeWidth="1.5">
             <circle cx="12" cy="12" r="10" />
@@ -208,7 +207,7 @@ export default function InvitePage({ params }) {
   }
 
   return (
-    <div className="flex min-h-[100dvh] items-center justify-center bg-slate-50 dark:bg-slate-950 px-4 py-12">
+    <div className="flex min-h-dvh items-center justify-center bg-slate-100 dark:bg-slate-950 px-4 py-12">
       <div className="w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 p-6 shadow-sm border border-slate-200 dark:border-slate-700">
         <div className="text-center mb-6">
           <svg viewBox="0 0 24 24" className="mx-auto h-12 w-12 text-emerald-600" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -291,19 +290,7 @@ export default function InvitePage({ params }) {
               className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
               placeholder="Оставьте пустым — вход будет только по номеру"
             />
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Минимум 6 символов, если заполняете</p>
-          </div>
-          <div>
-            <label htmlFor="confirmPassword" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Повторите пароль</label>
-            <input
-              id="confirmPassword"
-              type="password"
-              value={formData.confirmPassword}
-              onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-              autoComplete="new-password"
-              className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-              placeholder="Оставьте пустым, если пароль не нужен"
-            />
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Минимум 6 символов. Оставьте пустым — вход будет по номеру</p>
           </div>
           {error && <p className="text-sm text-rose-600 dark:text-rose-400 text-center">{error}</p>}
           <button
