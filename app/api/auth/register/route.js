@@ -63,7 +63,12 @@ export async function POST(request) {
       where: { id: invite.id },
       data: { usedAt: new Date(), chatId: chat.id },
     });
-    const token = await signToken({ userId: user.id, role: user.role, phone: user.phone });
+    const token = await signToken({
+        userId: user.id,
+        phone: user.phone,
+        role: user.role,
+        gardenerId: user.gardenerId,
+      });
     const res = NextResponse.json({ ok: true, chatId: chat.id });
     res.cookies.set('token', token, {
       httpOnly: true,

@@ -11,7 +11,7 @@ async function getUserFromRequest(req) {
   if (!token) return null;
   const payload = await verifyToken(token);
   if (!payload) return null;
-  return payload.userId;
+  return (payload.userId || (payload.id || payload.userId));
 }
 
 export async function GET(req) {
