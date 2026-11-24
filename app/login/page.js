@@ -1,4 +1,18 @@
 'use client';
+
+if (typeof window !== 'undefined') {
+  const k = 'login_loads_guard';
+  const n = Number(sessionStorage.getItem(k) || 0) + 1;
+  sessionStorage.setItem(k, String(n));
+  if (n > 4) {
+    sessionStorage.setItem(k, '0');
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('auth_role');
+  } else {
+    setTimeout(() => sessionStorage.setItem(k, '0'), 4000);
+  }
+}
+
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { CLIENT_VERSION } from '@/lib/pwa-env';
@@ -496,7 +510,7 @@ export default function LoginPage() {
 
       // Continue with existing logic for saved phone display
       const saved = localStorage.getItem('auth_phone');
-      const role = localStorage.getItem('auth_role');
+      const role = null;
 
       if (saved) {
         setSavedPhone(saved);

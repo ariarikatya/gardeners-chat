@@ -1,26 +1,9 @@
 import { NextResponse } from 'next/server';
-import crypto from 'crypto';
 import { prisma } from '@/lib/prisma';
+import { signToken } from '@/lib/jwt';
+import { hashPassword } from '@/lib/password';
 
 function digits(v = '') { return String(v).replace(/\D/g, ''); }
-
-function hashPassword(pw) {
-  const salt = crypto.randomBytes(16).toString('hex');
-  const hash = crypto.scryptSync(String(pw), salt, 64).toString('hex');
-  return `scrypt:${salt}:${hash}`;
-}
-
-function b64url(buf) {
-  return Buffer.from(buf).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
-
-function signToken(payload) {
-  const header = b64url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
-  const body = b64url(JSON.stringify(payload));
-  const secret = process.env.JWT_SECRET || process.env.AUTH_SECRET || '';
-  const sig = crypto.createHmac('sha256', secret).update(header + '.' + body).digest();
-  return header + '.' + body + '.' + b64url(sig);
-}
 
 export async function POST(request) {
   try {
@@ -49,7 +32,7 @@ export async function POST(request) {
         name,
         phone,
         role: 'CHAT',
-        passwordHash: password ? hashPassword(password) : 'NOPASS',
+        passwordHash: password ? await hashPassword(password) : 'NOPASS',
         photo: avatar,
         hidePhone: true,
       },
@@ -80,14 +63,7 @@ export async function POST(request) {
       where: { id: invite.id },
       data: { usedAt: new Date(), chatId: chat.id },
     });
-    const now = Math.floor(Date.now() / 1000);
-    const token = signToken({
-      userId: user.id,
-      role: user.role,
-      phone: user.phone,
-      iat: now,
-      exp: now + 365 * 24 * 3600,
-    });
+    const token = await signToken({ userId: user.id, role: user.role, phone: user.phone });
     const res = NextResponse.json({ ok: true, chatId: chat.id });
     res.cookies.set('token', token, {
       httpOnly: true,
