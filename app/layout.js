@@ -5,7 +5,7 @@ import SessionActivityTracker from '@/components/SessionActivityTracker';
 import { CLIENT_VERSION } from '@/lib/pwa-env';
 
 export const metadata = {
-  title: 'Анемон Агро',
+  title: 'А-чат',
   description: 'Система управления заказами садовников',
   manifest: '/manifest.json',
 };

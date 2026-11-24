@@ -5,7 +5,7 @@ import { saveUploadedFile } from '@/lib/uploads';
 import { sendToUsers } from '@/lib/webPush';
 
 const MAX_FILES_PER_MESSAGE = 10;
-const MAX_TOTAL_FILE_BYTES = 100 * 1024 * 1024;
+const MAX_TOTAL_FILE_BYTES = 500 * 1024 * 1024;
 const MAX_MULTIPART_BODY_BYTES = MAX_TOTAL_FILE_BYTES + 1024 * 1024;
 const MAX_MESSAGE_LENGTH = 4000;
 
@@ -137,7 +137,7 @@ export async function POST(req, { params }) {
   try {
     const requestLength = Number(req.headers.get('content-length'));
     if (Number.isFinite(requestLength) && requestLength > MAX_MULTIPART_BODY_BYTES) {
-      return NextResponse.json({ error: 'Размер сообщения с вложениями превышает лимит 100 МБ. Уменьшите файлы и попробуйте снова.' }, { status: 413 });
+      return NextResponse.json({ error: 'Слишком большой файл (максимум 500 МБ)' }, { status: 413 });
     }
 
     const membership = await findMembership(params.chatId, auth.user.id);
@@ -174,7 +174,7 @@ export async function POST(req, { params }) {
 
     const totalBytes = files.reduce((total, file) => total + file.size, 0);
     if (totalBytes > MAX_TOTAL_FILE_BYTES) {
-      return NextResponse.json({ error: 'Общий размер вложений не должен превышать 100 МБ' }, { status: 413 });
+      return NextResponse.json({ error: 'Общий размер вложений не должен превышать 500 МБ' }, { status: 413 });
     }
     if (!body && files.length === 0 && !forwardedFromMessageId) {
       return NextResponse.json({ error: 'Введите сообщение или прикрепите файл' }, { status: 400 });
@@ -234,7 +234,7 @@ export async function POST(req, { params }) {
     const totalAttachmentBytes = files.reduce((total, file) => total + file.size, 0)
       + (forwardedSource?.attachments.reduce((total, attachment) => total + attachment.size, 0) || 0);
     if (totalAttachmentBytes > MAX_TOTAL_FILE_BYTES) {
-      return NextResponse.json({ error: 'Общий размер вложений не должен превышать 100 МБ' }, { status: 413 });
+      return NextResponse.json({ error: 'Общий размер вложений не должен превышать 500 МБ' }, { status: 413 });
     }
 
     const uploaded = [];
@@ -407,9 +407,7 @@ export async function POST(req, { params }) {
     }, { status: 201 });
   } catch (error) {
     console.error('Ошибка POST /api/chats/[chatId]/messages:', error);
-    if (/formdata|request body|body size limit|entity too large|payload too large/i.test(error.message || '')) {
-      return NextResponse.json({ error: 'Размер сообщения с вложениями превышает лимит 100 МБ. Уменьшите файлы и попробуйте снова.' }, { status: 413 });
-    }
+      return NextResponse.json({ error: 'Слишком большой файл (максимум 500 МБ)' }, { status: 413 });
     return NextResponse.json({ error: error.message || 'Не удалось отправить сообщение' }, { status: 500 });
   }
 }

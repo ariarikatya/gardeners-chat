@@ -9,7 +9,7 @@ import { compressChatVideo } from '@/lib/chatVideoCompress';
 import ChatMediaLightbox from '@/components/ChatMediaLightbox';
 import SettingsDrawer from '@/components/SettingsDrawer';
 
-const MAX_TOTAL_FILE_BYTES = 100 * 1024 * 1024;
+const MAX_TOTAL_FILE_BYTES = 500 * 1024 * 1024;
 const MAX_FILES_PER_MESSAGE = 10;
 const CHAT_CONTACTS_KEY = 'chat_contacts';
 
@@ -1160,18 +1160,18 @@ useEffect(() => {
           return normalizedFile;
         } catch (compressionError) {
           if (normalizedFile.size > MAX_TOTAL_FILE_BYTES) {
-            throw new Error(`Файл «${normalizedFile.name}» превышает лимит 100 МБ и не удалось сжать его для отправки.`);
+            throw new Error('Файл слишком большой (максимум 500 МБ)');
           }
           throw compressionError;
         }
       }));
       const oversizedFile = uploadFiles.find((file) => file.size > MAX_TOTAL_FILE_BYTES);
       if (oversizedFile) {
-        throw new Error(`Файл «${oversizedFile.name}» превышает лимит 100 МБ даже после сжатия. Выберите файл меньшего размера.`);
+        throw new Error(`Файл «${oversizedFile.name}» превышает лимит 500 МБ даже после сжатия. Выберите файл меньшего размера.`);
       }
       const totalBytes = uploadFiles.reduce((sum, file) => sum + file.size, 0);
       if (totalBytes > MAX_TOTAL_FILE_BYTES) {
-        throw new Error('Общий размер вложений не должен превышать 100 МБ');
+        throw new Error('Общий размер вложений не должен превышать 500 МБ');
       }
       uploadFiles.forEach((file) => formData.append('files', file));
       const data = await requestJson(`/api/chats/${encodeURIComponent(activeChatId)}/messages`, {
@@ -1418,6 +1418,14 @@ const closeChat = () => {
     window.history.replaceState(null, '', '/chats');
   };
 
+  const resetToList = () => {
+    setActiveChatId('');
+    setMessages([]);
+    setSettingsOpen(false);
+    setSearchOpen(false);
+    setChatSettings(null);
+  };
+
   const handleLogout = async () => {
     try {
       await requestJson('/api/auth/logout', { method: 'POST' });
@@ -1442,6 +1450,7 @@ const closeChat = () => {
       });
       setChatSettings(data.settings || {});
       await loadChats();
+      if (action === 'deleteChat') resetToList();
       setSettingsOpen(false);
     } catch (requestError) {
       setError(requestError.message || 'Не удалось изменить настройки чата');
@@ -1809,7 +1818,7 @@ const closeChat = () => {
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
             <div className="min-w-0">
-              <h1 className="text-lg font-bold">Чаты</h1>
+              <h1 className="text-lg font-bold" onClick={resetToList}>А-чат</h1>
               <p className="truncate text-xs text-emerald-100">{user?.name || 'Переписка сотрудников'}</p>
             </div>
           </div>
@@ -1978,7 +1987,7 @@ const closeChat = () => {
                   </button>
                   <button
                     type="button"
-                    onClick={() => openParticipants(activeChat.id)}
+                    onClick={resetToList}
                     className="flex min-w-0 items-center gap-3 text-left hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg p-1 -m-1"
                     aria-label="Участники чата"
                   >
@@ -2876,7 +2885,7 @@ const closeChat = () => {
 
       <SettingsDrawer open={settingsDrawerOpen} onClose={() => setSettingsDrawerOpen(false)} user={user} onUpdateUser={setUser} />
 
-      <footer className="px-4 pb-4 text-center text-[11px] text-slate-400 dark:text-slate-500 md:hidden">
+      <footer className="px-4 pb-4 text-center text-[11px] text-slate-400 dark:text-slate-500">
         <button type="button" onClick={handleLogout} className="underline">Выйти из аккаунта</button>
       </footer>
     </main>
