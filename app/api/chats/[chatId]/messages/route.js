@@ -339,11 +339,12 @@ export async function POST(req, { params }) {
         chatId: params.chatId,
         userId: { not: auth.user.id },
       },
-      select: { userId: true, isMuted: true, mutedUntil: true },
+      select: { userId: true, isMuted: true, mutedUntil: true, user: { select: { notificationsEnabled: true, chatNotificationsEnabled: true } } },
     });
     const now = new Date();
-    const activeRecipients = recipients.filter(({ isMuted, mutedUntil }) => (
-      !isMuted || (mutedUntil && mutedUntil <= now)
+    const activeRecipients = recipients.filter(({ isMuted, mutedUntil, user }) => (
+      (!isMuted || (mutedUntil && mutedUntil <= now)) &&
+      user?.notificationsEnabled === true && user?.chatNotificationsEnabled === true
     ));
     if (activeRecipients.length) {
       const senderName = auth.user.name || 'Пользователь';

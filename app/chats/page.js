@@ -709,47 +709,6 @@ export default function ChatsPage() {
     return () => { cancelled = true; };
   }, [loadChats]);
 
-  useEffect(() => {
-    if (typeof window === 'undefined' || !('Notification' in window)) return;
-    const prompted = sessionStorage.getItem('push_prompted');
-    if (prompted) return;
-    if (!user) return;
-    if (Notification.permission !== 'default') return;
-
-    let cancelled = false;
-    async function promptPushPermission() {
-      try {
-        const permission = await Notification.requestPermission();
-        if (cancelled) return;
-        sessionStorage.setItem('push_prompted', '1');
-        if (permission === 'granted') {
-          const registration = await navigator.serviceWorker.ready;
-          const vapidResponse = await fetch('/api/push/vapid-public-key');
-          const { key } = await vapidResponse.json();
-          if (!key) return;
-          const subscription = await registration.pushManager.subscribe({
-            userVisibleOnly: true,
-            applicationServerKey: urlBase64ToUint8Array(key),
-          });
-          await apiFetch('/api/push/subscribe', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              endpoint: subscription.endpoint,
-              p256dh: btoa(String.fromCharCode(...new Uint8Array(subscription.getKey('p256dh')))),
-              auth: btoa(String.fromCharCode(...new Uint8Array(subscription.getKey('auth')))),
-            }),
-          });
-        }
-      } catch (e) {
-        console.warn('Push permission prompt failed:', e);
-        if (!cancelled) sessionStorage.setItem('push_prompted', '1');
-      }
-    }
-    promptPushPermission();
-    return () => { cancelled = true; };
-  }, [user]);
-
   function urlBase64ToUint8Array(base64String) {
     const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
     const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
