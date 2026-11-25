@@ -15,6 +15,8 @@ enum Role {
 }
 
 model User {
+  chatNotificationsEnabled Boolean @default(true)
+  orderNotificationsEnabled Boolean @default(true)
   photo String?
   id                   String    @id @default(uuid())
   phone                String    @unique
