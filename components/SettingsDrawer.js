@@ -230,6 +230,8 @@ export default function SettingsDrawer({ open, onClose, user, onUpdateUser }) {
         }),
       });
       setPushSubscribed(true);
+      await apiFetch('/api/auth/me', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notificationsEnabled: true, chatNotificationsEnabled: true }) }).catch(() => {});
+      if (onUpdateUser) onUpdateUser({ ...user, notificationsEnabled: true, chatNotificationsEnabled: true });
       setToast('Уведомления включены');
       if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
       toastTimerRef.current = window.setTimeout(() => {
@@ -259,6 +261,8 @@ export default function SettingsDrawer({ open, onClose, user, onUpdateUser }) {
         });
       }
       setPushSubscribed(false);
+      await apiFetch('/api/auth/me', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chatNotificationsEnabled: false }) }).catch(() => {});
+      if (onUpdateUser) onUpdateUser({ ...user, chatNotificationsEnabled: false });
       setToast('Уведомления выключены');
       if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
       toastTimerRef.current = window.setTimeout(() => {
@@ -419,7 +423,7 @@ export default function SettingsDrawer({ open, onClose, user, onUpdateUser }) {
                         {pushLoading ? 'Подключение…' : 'Включить уведомления'}
                       </button>
                     ) : Notification.permission === 'granted' ? (
-                      pushSubscribed ? (
+                      (user?.chatNotificationsEnabled && pushSubscribed) ? (
                         <button
                           type="button"
                           onClick={handlePushUnsubscribe}
